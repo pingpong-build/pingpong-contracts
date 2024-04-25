@@ -1,12 +1,53 @@
 ## PP Contracts
 
-### Base
+### Sepolia
 
-Mapped GRT: 0xf135A23f315509412123F354e3fb4760d93A99EA
+Mock GRT: 0xBd7260B122F7baD2b299C8D8f6dB7B9889f0aeb7
 
-Mapped AKT: 0x7f981c871A03903e70e4c8C39b19EcacdeD51683
+Mock AKT: 0x0658417F1Af705a20333Ac1b1B01A2Bf0c139eB3
 
 ### How to work
+
+`Bridger` will emit `Bridged` event, when user bridge token,
+
+```solidity
+ event Bridged(address token, address from, address to, uint256 amount);
+```
+
+abi:
+```json
+[ {
+  "type": "event",
+  "name": "Bridged",
+  "inputs": [
+    {
+      "name": "token",
+      "type": "address",
+      "indexed": false,
+      "internalType": "address"
+    },
+    {
+      "name": "from",
+      "type": "address",
+      "indexed": false,
+      "internalType": "address"
+    },
+    {
+      "name": "to",
+      "type": "address",
+      "indexed": false,
+      "internalType": "address"
+    },
+    {
+      "name": "amount",
+      "type": "uint256",
+      "indexed": false,
+      "internalType": "uint256"
+    }
+  ],
+  "anonymous": false
+}]
+```
 
 Minter mints mapped token.
 
