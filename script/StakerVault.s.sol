@@ -9,7 +9,7 @@ contract StakerVaultScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        new StakerVault(0xcE150D52d01B7cB0b0E1b37A52BCb2227f8E2D35, "pGRT", "pGRT");
+        new StakerVault(0x07511e0c7Ea791c396cc30Dbc2542FAF5D406294, "ppGRT", "ppGRT");
         vm.stopBroadcast();
     }
 }
