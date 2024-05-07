@@ -9,8 +9,8 @@ contract StakerVaultScript is Script {
 
     function run() public {
         vm.startBroadcast();
-//        new StakerVault(0x07511e0c7Ea791c396cc30Dbc2542FAF5D406294, "ppGRT", "ppGRT");
-        new StakerVault(0x076EA2DE7675e0400C344fCeefE807c7E3646E3B, "ppLPT", "ppLPT");
+        new StakerVault(0x67F89748Da3349e394A0474A2EF0BC380aE21f4b, "ppGRT", "ppGRT");
+        new StakerVault(0x83576E2B35F858aB47E32A2e9B9Af6ea68BaD839, "ppLPT", "ppLPT");
         vm.stopBroadcast();
     }
 }
