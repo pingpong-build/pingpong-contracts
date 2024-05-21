@@ -16,6 +16,12 @@ contract MultiMint is AccessControl {
 
     address[] public tokens;
 
+    struct Claim {
+        string id;
+        uint256 amount;
+        bytes signature;
+    }
+
     /**
    * @dev Thrown when the signer is not prover address
      */
@@ -39,25 +45,31 @@ contract MultiMint is AccessControl {
         proverAddress = _proverAddress;
     }
 
-    function claim(string memory id, uint256 amount, bytes memory proof) public {
-        if (claimedIds[id]) {
-            revert RepeatedID(id);
+    function multiClaim(Claim[] memory claims) public {
+        for (uint256 i = 0; i < claims.length; i++) {
+            claim(claims[i]);
+        }
+    }
+
+    function claim(Claim memory singleClaim) public {
+        if (claimedIds[singleClaim.id]) {
+            revert RepeatedID(singleClaim.id);
         }
 
-        bytes32 signedHash = keccak256(abi.encodePacked(id, amount, msg.sender));
+        bytes32 signedHash = keccak256(abi.encodePacked(singleClaim.id, singleClaim.amount, msg.sender));
 
-        address signer = ECDSA.recover(signedHash, proof);
+        address signer = ECDSA.recover(signedHash, singleClaim.signature);
         if (signer != proverAddress) {
-            revert WrongSignature(id);
+            revert WrongSignature(singleClaim.id);
         }
 
         for (uint i = 0; i < tokens.length; i++) {
-            IMockToken(tokens[i]).mint(msg.sender, amount);
+            IMockToken(tokens[i]).mint(msg.sender, singleClaim.amount);
         }
 
-        userClaimedAmount[msg.sender] += amount;
-        totalClaimedAmount += amount;
-        claimedIds[id] = true;
+        userClaimedAmount[msg.sender] += singleClaim.amount;
+        totalClaimedAmount += singleClaim.amount;
+        claimedIds[singleClaim.id] = true;
         totalTxAmount += 1;
     }
 
