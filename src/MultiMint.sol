@@ -7,7 +7,7 @@ import "./interfaces/IMockToken.sol";
 
 contract MultiMint is AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    address public proverAddress = 0x4a6A31787fcef281c426529061eD13aFFCD28724;
+    address public proverAddress = 0x4D1Bf9E866f0aa6D1b162B6CD5fdF21EE2eA084b;
 
     uint256 public totalClaimedAmount;
     mapping(address => uint256) public userClaimedAmount;
