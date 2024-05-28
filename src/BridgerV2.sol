@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract BridgerV2 is AccessControl {
-    uint256 public constant BRIDGE_FEE = 0.0015 ether;
+    uint256 public bridgeFee = 0.0015 ether;
 
     error WrongBridgeAmount();
 
@@ -17,8 +17,16 @@ contract BridgerV2 is AccessControl {
 
     event Bridged(address token, address from, address to, uint256 amount);
 
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function setBridgeFee(uint256 fee) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        bridgeFee = fee;
+    }
+
     function bridge(address token, address to, uint256 amount) public payable {
-        if (msg.value < BRIDGE_FEE) {
+        if (msg.value < bridgeFee) {
             revert WrongBridgeFee(msg.value);
         }
 
