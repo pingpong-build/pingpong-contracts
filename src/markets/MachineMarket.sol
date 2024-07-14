@@ -5,10 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC721} from "../../lib/forge-std/src/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "./IMachineTickets.sol";
+import "./IMachinePassManager.sol";
 
 contract MachineMarket is AccessControl {
-    IERC721 public machineTickets;
+    IERC721 public machinePassManager;
     uint256 public price;
     address public prover;
 
@@ -16,10 +16,11 @@ contract MachineMarket is AccessControl {
         uint256 machineType;
         uint256 borrowedAt;
         uint256 duration;
+        address borrower;
     }
 
-    // machine type(1, 2, 3) => tickets nft address
-    mapping(uint256 => address) public ticketsAddresses;
+    // machine type(1, 2, 3) => passManager address
+    mapping(uint256 => address) public passManagerAddresses;
 
     mapping(string => Machine) public machines;
 
@@ -31,7 +32,7 @@ contract MachineMarket is AccessControl {
     /**
      * @dev Thrown when transfer failed
      */
-    error InvalidTicketOwner(address ticketsAddress);
+    error InvalidPassOwner(address passAddress);
 
     /**
      * @dev Thrown when transfer failed
@@ -51,6 +52,11 @@ contract MachineMarket is AccessControl {
     /**
      * @dev Thrown when transfer failed
      */
+    error RenewFailed();
+
+    /**
+     * @dev Thrown when transfer failed
+     */
     error RepeatedMachineLending();
 
     /**
@@ -58,9 +64,16 @@ contract MachineMarket is AccessControl {
      */
     error InvalidSignature();
 
+    /**
+     * @dev Thrown when to address is empty
+     */
+    error InvalidToAddress(address to);
+
     event MachineLent(string machineId, uint256 machineType);
 
-    event MachineBorrowed(address who, string machineId, uint256 tokenId);
+    event MachineBorrowed(address who, string machineId, uint256 tokenId, uint256 borrowedAt, uint256 during);
+
+    event MachineRenewed(address who, string machineId, uint256 tokenId, uint256 duration);
 
     constructor(address _prover) {
         prover = _prover;
@@ -70,8 +83,8 @@ contract MachineMarket is AccessControl {
         prover = _prover;
     }
 
-    function setTicketsAddresses(uint256 machineType, address ticketsAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        ticketsAddresses[machineType] = ticketsAddress;
+    function setPassManagerAddress(uint256 machineType, address passManagerAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        passManagerAddresses[machineType] = passManagerAddress;
     }
 
     function lendMachine(string memory machineId, uint256 machineType, bytes memory signature) public {
@@ -79,7 +92,7 @@ contract MachineMarket is AccessControl {
             revert RepeatedMachineLending();
         }
 
-        if (ticketsAddresses[machineType] == address(0)) {
+        if (passManagerAddresses[machineType] == address(0)) {
             revert InvalidMachineType();
         }
 
@@ -95,7 +108,11 @@ contract MachineMarket is AccessControl {
         emit MachineLent(machineId, machineType);
     }
 
-    function borrowMachine(string memory machineId, uint256 tokenId) public {
+    function borrowMachine(address to, string memory machineId, uint256 tokenId) public {
+        if (to == address(0)) {
+            revert InvalidToAddress(to);
+        }
+
         Machine storage machine = machines[machineId];
         if (machine.machineType == 0) {
             revert InvalidMachineId();
@@ -105,18 +122,41 @@ contract MachineMarket is AccessControl {
             revert RepeatedMachineBorrowing();
         }
 
-        address ticketsAddress = ticketsAddresses[machine.machineType];
+        address passManagerAddress = passManagerAddresses[machine.machineType];
 
-        if (IERC721(ticketsAddress).ownerOf(tokenId) != msg.sender) {
-            revert InvalidTicketOwner(ticketsAddress);
+        if (IERC721(passManagerAddress).ownerOf(tokenId) != msg.sender) {
+            revert InvalidPassOwner(passManagerAddress);
         }
 
-        IERC721(ticketsAddress).transferFrom(msg.sender, address(this), tokenId);
+        IERC721(passManagerAddress).transferFrom(msg.sender, address(this), tokenId);
 
-        uint256 duration = IMachineTickets(ticketsAddress).getTicketDuration(tokenId);
+        uint256 duration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
 
-        machines[machineId] = Machine(machine.machineType, block.timestamp, duration);
+        machines[machineId] = Machine(machine.machineType, block.timestamp, duration, to);
 
-        emit MachineBorrowed(msg.sender, machineId, tokenId);
+        emit MachineBorrowed(to, machineId, tokenId, block.timestamp, duration);
+    }
+
+    function renewMachine(string memory machineId, uint256 tokenId) public {
+        Machine storage machine = machines[machineId];
+        if (machine.machineType == 0) {
+            revert InvalidMachineId();
+        }
+
+        if (machine.borrowedAt + machine.duration < block.timestamp) {
+            revert RenewFailed();
+        }
+
+        address passManagerAddress = passManagerAddresses[machine.machineType];
+
+        if (IERC721(passManagerAddress).ownerOf(tokenId) != msg.sender) {
+            revert InvalidPassOwner(passManagerAddress);
+        }
+
+        uint256 additionalDuration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
+
+        machine.duration += additionalDuration;
+
+        emit MachineRenewed(msg.sender, machineId, tokenId, additionalDuration);
     }
 }
