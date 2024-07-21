@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import "./IMachinePassManager.sol";
+import "./interfaces/IMachinePassManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
@@ -18,8 +18,8 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
     /// @notice Next token id
     uint256 public nextTokenId;
 
-    /// @notice Tracks all pass type, indexed by pass type id
-    // pass type id (1, 2, 3, 4...) => pass type
+    /// @notice Tracks all pass type, indexed by pass type
+    // pass type (1, 2, 3, 4...) => pass type
     mapping(uint256 => PassType) public types;
 
     /// @notice Tracks all nft types, indexed by nft token id
@@ -34,7 +34,7 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
     /* ------------------- Admin functions -------------------- */
 
     /**
-     * @notice admin can set pass type
+     * @notice Admin can set pass type
      * @param typeId The pass type id
      * @param token The payment token address
      * @param price The price of the pass
@@ -113,6 +113,10 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
      */
     function getPassDuration(uint256 tokenId) public view returns (uint256) {
         return types[nftTypes[tokenId]].duration;
+    }
+
+    function getPassPrice(uint256 typeId, address token) public view returns (uint256) {
+        return types[typeId].prices[token];
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721) returns (bool) {

@@ -32,4 +32,8 @@ interface IMachinePassManager {
     event TypeUpdated(uint256 typeId, address token, uint256 price);
 
     function getPassDuration(uint256 tokenId) external returns (uint256);
+
+    function getPassPrice(uint256 typeId, address token) external returns (uint256);
+
+    function mint(address to, uint256 typeId, address token) external returns (uint256);
 }

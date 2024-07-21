@@ -5,114 +5,70 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC721} from "../../lib/forge-std/src/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "./IMachinePassManager.sol";
+import "./interfaces/IMachinePassManager.sol";
+import {IMachineMarket} from "./interfaces/IMachineMarket.sol";
 
-contract MachineMarket is AccessControl {
-    IERC721 public machinePassManager;
-    uint256 public price;
-    address public prover;
+contract MachineMarket is AccessControl, IMachineMarket {
 
-    struct Machine {
-        uint256 machineType;
-        uint256 borrowedAt;
-        uint256 duration;
-        address borrower;
-        bool updated;
-    }
+    bytes32 public constant MACHINE_PROVER_ROLE = keccak256("MACHINE_PROVER");
 
-    // machine type(1, 2, 3) => passManagerAddress
+    /* ----------------------- Storage ------------------------ */
+
+    /// @notice Tracks all passManagerAddress, indexed by machine type
+    // machine type (1, 2, 3) => passManagerAddress
     mapping(uint256 => address) public passManagerAddresses;
 
-    // machine id => Machine
+    /// @notice Tracks all machines, indexed by machine id
+    // machine id => machine
     mapping(string => Machine) public machines;
 
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error TransferFailed();
+    /* --------------------- Constructor ---------------------- */
 
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error InvalidPassOwner(address passAddress);
-
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error InvalidMachineType();
-
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error InvalidMachineId();
-
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error RepeatedMachineBorrowing();
-
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error RenewFailed();
-
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error RepeatedMachineLending();
-
-    /**
-     * @dev Thrown when the signer is not prover address
-     */
-    error InvalidSignature();
-
-    /**
-     * @dev Thrown when to address is empty
-     */
-    error InvalidToAddress(address to);
-
-    event MachineLent(string machineId, uint256 machineType);
-
-    event MachineBorrowed(address who, string machineId, uint256 tokenId, uint256 borrowedAt, uint256 during);
-
-    event MachineRenewed(address who, string machineId, uint256 tokenId, uint256 duration);
-
-    constructor(address _prover) {
-        prover = _prover;
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setProver(address _prover) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        prover = _prover;
-    }
+    /* ------------------- Admin functions -------------------- */
 
+    /**
+     * @notice Admin can set passManagerAddress
+     * @param machineType The machine type
+     * @param passManagerAddress The passManagerAddress
+     */
     function setPassManagerAddress(uint256 machineType, address passManagerAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
         passManagerAddresses[machineType] = passManagerAddress;
     }
 
-    function lendMachine(string memory machineId, uint256 machineType, bytes memory signature) public {
+    /**
+     * @notice Machine prover can list machine
+     * @param machineId The machine id
+     * @param machineType The machine type
+     */
+    function listMachine(string memory machineId, uint256 machineType) public onlyRole(MACHINE_PROVER_ROLE) {
         if (machines[machineId].machineType != 0) {
-            revert RepeatedMachineLending();
+            revert RepeatedMachineListing();
         }
 
         if (passManagerAddresses[machineType] == address(0)) {
             revert InvalidMachineType();
         }
 
-        bytes32 signedHash = keccak256(abi.encodePacked(machineId, machineType));
+        machines[machineId] = Machine(machineType, 0, 0, address(0), false);
 
-        address signer = ECDSA.recover(signedHash, signature);
-        if (signer != prover) {
-            revert InvalidSignature();
-        }
-
-        machines[machineId] = Machine(machineType, 0, 0);
-
-        emit MachineLent(machineId, machineType);
+        emit MachineListed(machineId, machineType);
     }
 
-    function borrowMachine(address to, string memory machineId, uint256 tokenId) public {
+    /* ----------------------- User functions ------------------------ */
+
+    /**
+     * @notice Allows users to borrow machine of the specified machineId by paying with the specified pass nft.
+     * @param to The address that will receive machine.
+     * @param machineId The id of the machine being borrowed.
+     * @param tokenId The pass nft tokenId.
+     */
+    function borrowMachine(address to, string memory machineId, uint256 tokenId, string memory data) public {
         if (to == address(0)) {
-            revert InvalidToAddress(to);
+            revert InvalidToAddress();
         }
 
         Machine storage machine = machines[machineId];
@@ -120,7 +76,7 @@ contract MachineMarket is AccessControl {
             revert InvalidMachineId();
         }
 
-        if (machine.borrowedAt + machine.duration > block.timestamp) {
+        if (machine.borrower != address(0) && (machine.updated && machine.borrowedAt + machine.duration > block.timestamp)) {
             revert RepeatedMachineBorrowing();
         }
 
@@ -134,18 +90,25 @@ contract MachineMarket is AccessControl {
 
         uint256 duration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
 
-        machines[machineId] = Machine(machine.machineType, block.timestamp, duration, to);
+        machine.borrower = to;
+        machine.duration = duration;
+        machine.updated = false;
 
-        emit MachineBorrowed(to, machineId, tokenId, block.timestamp, duration);
+        emit MachineBorrowed(to, machineId, tokenId, duration, data);
     }
 
+    /**
+     * @notice Allows users to renew machine of the specified machineId by paying with the specified pass nft.
+     * @param machineId The id of the machine being borrowed.
+     * @param tokenId The pass nft tokenId.
+     */
     function renewMachine(string memory machineId, uint256 tokenId) public {
         Machine storage machine = machines[machineId];
         if (machine.machineType == 0) {
             revert InvalidMachineId();
         }
 
-        if (machine.borrowedAt + machine.duration < block.timestamp) {
+        if (machine.borrower != msg.sender) {
             revert RenewFailed();
         }
 
@@ -160,5 +123,9 @@ contract MachineMarket is AccessControl {
         machine.duration += additionalDuration;
 
         emit MachineRenewed(msg.sender, machineId, tokenId, additionalDuration);
+    }
+
+    function getMachineType(string memory machineId) public view returns (uint256) {
+        return machines[machineId].machineType;
     }
 }
