@@ -2,89 +2,85 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import "./IMachinePassManager.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MachinePassManager is AccessControl, ERC721 {
+contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
     using Strings for uint256;
 
+    /* ----------------------- Storage ------------------------ */
+
+    /// @notice Base uri for computing tokenURI
     string public baseURI;
+
+    /// @notice Next token id
     uint256 public nextTokenId;
 
-    struct PassType {
-        uint256 duration; // in seconds
-        mapping(address => uint256) prices; // Mapping of token address to price
-    }
+    /// @notice Tracks all pass type, indexed by pass type id
+    // pass type id (1, 2, 3, 4...) => pass type
+    mapping(uint256 => PassType) public types;
 
-    // pass type id => pass type
-    mapping(uint256 => PassType) public passTypes;
-
+    /// @notice Tracks all nft types, indexed by nft token id
     // nft token id => pass type id
     mapping(uint256 => uint256) public nftTypes;
 
-    /**
-     * @dev Thrown when transfer failed
-     */
-    error TransferFailed();
-
-    /**
-     * @dev Thrown when pass type is wrong
-     */
-    error InvalidPassType(uint256 typeId);
-
-    /**
-     * @dev Thrown when pass price token is wrong
-     */
-    error InvalidPassPriceToken(address token);
-
-    /**
-     * @dev Thrown when to address is empty
-     */
-    error InvalidToAddress(address to);
-
-    event PassTypeAdded(uint256 typeId, uint256 duration, uint256 price);
-
-    event PassMinted(address to, uint256 tokenId, uint256 typeId, address token);
-
-    event PassPriceAdded(uint256 typeId, address token, uint256 price);
+    /* --------------------- Constructor ---------------------- */
 
     constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) {}
 
-    function setPassPrice(uint256 typeId, address token, uint256 price) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        passTypes[typeId].prices[token] = price;
-        emit PassPriceAdded(typeId, address(token), price);
+
+    /* ------------------- Admin functions -------------------- */
+
+    /**
+     * @notice admin can set pass type
+     * @param typeId The pass type id
+     * @param token The payment token address
+     * @param price The price of the pass
+     */
+    function setType(uint256 typeId, address token, uint256 price) external onlyOwner {
+        types[typeId].prices[token] = price;
+        emit TypeUpdated(typeId, token, price);
     }
 
-    function getPassDuration(uint256 tokenId) public view returns (uint256){
-        return passTypes[nftTypes[tokenId]].duration;
+    function withdraw(address to, IERC20 token) external onlyOwner {
+        uint256 total = token.balanceOf(address(this));
+        token.transfer(to, total);
     }
 
-    function setBaseURI(string memory _baseURI) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /**
+     * @notice Admin can set base uri
+     * @param _baseURI The base uri
+     */
+    function setBaseURI(string memory _baseURI) external onlyOwner {
         baseURI = _baseURI;
     }
 
-    function setPassType(uint256 typeId, uint256 duration, uint256 price) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        passTypes[typeId] = PassType(duration, price);
-        emit PassTypeAdded(typeId, duration, price);
-    }
+    /* ----------------------- User functions ------------------------ */
 
+    /**
+     * @notice Allows users to mint a pass nft of a specified type by paying with the specified token.
+     * @param to The address that will receive the minted NFT.
+     * @param typeId The id of the pass type being minted.
+     * @param token The address of the payment token.
+     */
     function mint(address to, uint256 typeId, address token) public {
         if (to == address(0)) {
             revert InvalidToAddress(to);
         }
 
-        if (passTypes[typeId].duration == 0) {
+        if (types[typeId].duration == 0) {
             revert InvalidPassType(typeId);
         }
 
-        if (passTypes[typeId].prices[token] == 0) {
+        if (types[typeId].prices[token] == 0) {
             revert InvalidPassPriceToken(token);
         }
 
-        PassType memory passType = passTypes[typeId];
+        PassType memory passType = types[typeId];
 
-        bool res = IERC20(passTypes[typeId].prices[token]).transferFrom(msg.sender, address(this), passType.prices[token]);
+        bool res = IERC20(types[typeId].prices[token]).transferFrom(msg.sender, address(this), passType.prices[token]);
         if (!res) {
             revert TransferFailed();
         }
@@ -100,20 +96,26 @@ contract MachinePassManager is AccessControl, ERC721 {
         return tokenId;
     }
 
+    /* ----------------------- View functions ------------------------ */
+
+    /**
+     * @notice Get token url of pass nft
+     * @param tokenId The pass nft token id
+     */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         uint256 typeId = nftTypes[tokenId];
         return string.concat(baseURI, typeId.toString());
     }
 
-    function withdraw(address to, IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 total = token.balanceOf(address(this));
-        bool res = token.transfer(to, total);
-        if (!res) {
-            revert TransferFailed();
-        }
+    /**
+     * @notice Get duration of pass nft
+     * @param tokenId The pass nft token id
+     */
+    function getPassDuration(uint256 tokenId) public view returns (uint256) {
+        return types[nftTypes[tokenId]].duration;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }

@@ -17,11 +17,13 @@ contract MachineMarket is AccessControl {
         uint256 borrowedAt;
         uint256 duration;
         address borrower;
+        bool updated;
     }
 
-    // machine type(1, 2, 3) => passManager address
+    // machine type(1, 2, 3) => passManagerAddress
     mapping(uint256 => address) public passManagerAddresses;
 
+    // machine id => Machine
     mapping(string => Machine) public machines;
 
     /**
