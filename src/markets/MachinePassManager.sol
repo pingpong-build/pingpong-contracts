@@ -28,7 +28,7 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
 
     /* --------------------- Constructor ---------------------- */
 
-    constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) {}
+    constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) Ownable(msg.sender) {}
 
 
     /* ------------------- Admin functions -------------------- */
@@ -65,22 +65,22 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
      * @param typeId The id of the pass type being minted.
      * @param token The address of the payment token.
      */
-    function mint(address to, uint256 typeId, address token) public {
+    function mint(address to, uint256 typeId, address token) public returns (uint256) {
         if (to == address(0)) {
-            revert InvalidToAddress(to);
+            revert InvalidToAddress();
         }
 
         if (types[typeId].duration == 0) {
-            revert InvalidPassType(typeId);
+            revert InvalidPassType();
         }
 
-        if (types[typeId].prices[token] == 0) {
-            revert InvalidPassPriceToken(token);
+        uint256 price = types[typeId].prices[token];
+
+        if (price == 0) {
+            revert InvalidPassPriceToken();
         }
 
-        PassType memory passType = types[typeId];
-
-        bool res = IERC20(types[typeId].prices[token]).transferFrom(msg.sender, address(this), passType.prices[token]);
+        bool res = IERC20(token).transferFrom(msg.sender, address(this), price);
         if (!res) {
             revert TransferFailed();
         }

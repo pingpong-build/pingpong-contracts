@@ -15,17 +15,17 @@ interface IMachinePassManager {
     /**
      * @dev Thrown when pass type is wrong
      */
-    error InvalidPassType(uint256 typeId);
+    error InvalidPassType();
 
     /**
      * @dev Thrown when pass price token is wrong
      */
-    error InvalidPassPriceToken(address token);
+    error InvalidPassPriceToken();
 
     /**
      * @dev Thrown when to address is empty
      */
-    error InvalidToAddress(address to);
+    error InvalidToAddress();
 
     event PassMinted(address to, uint256 tokenId, uint256 typeId, address token);
 
