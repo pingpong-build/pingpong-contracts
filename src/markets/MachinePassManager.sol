@@ -7,6 +7,9 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import "./interfaces/IMachinePassManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title MachinePassManager
+/// @notice This contract manages the minting and management of machine pass NFTs
+/// @dev Inherits from Ownable and ERC721, implements IMachinePassManager
 contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
     using Strings for uint256;
 
@@ -22,62 +25,61 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
     uint256 public nextTokenId;
 
     /// @notice Tracks all pass type, indexed by pass type
-    // pass type (1, 2, 3, 4...) => pass type
+    /// @dev pass type (1, 2, 3, 4...) => pass type
     mapping(uint256 => PassType) public types;
 
     /// @notice Tracks all nft types, indexed by nft token id
-    // nft token id => pass type id
+    /// @dev nft token id => pass type id
     mapping(uint256 => uint256) public nftTypes;
 
     /* --------------------- Constructor ---------------------- */
 
+    /// @notice Initializes the contract with a name and symbol for the ERC721 token
+    /// @param _name The name of the ERC721 token
+    /// @param _symbol The symbol of the ERC721 token
     constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) Ownable(msg.sender) {}
 
 
     /* ------------------- Admin functions -------------------- */
 
-    /**
-     * @notice Admin can set pass type
-     * @param typeId The pass type id
-     * @param token The payment token address
-     * @param price The price of the pass
-     */
+    /// @notice Admin can set pass type
+    /// @param typeId The pass type id
+    /// @param token The payment token address
+    /// @param price The price of the pass
     function setType(uint256 typeId, uint256 duration, address token, uint256 price) external onlyOwner {
         types[typeId].duration = duration;
         types[typeId].prices[token] = price;
         emit TypeUpdated(typeId, duration, token, price);
     }
 
-    /**
-     * @notice Admin can set machine market address
-     * @param newMachineMarketAddress new machineMarketAddress
-     */
+    /// @notice Admin can set machine market address
+    /// @param newMachineMarketAddress new machineMarketAddress
     function setMachineMarketAddress(address newMachineMarketAddress) external onlyOwner {
         machineMarketAddress = newMachineMarketAddress;
         emit MachineMarketAddressUpdated(newMachineMarketAddress);
     }
 
+
+    /// @notice Allows the owner to rescue tokens accidentally sent to this contract
+    /// @param to The address to send the rescued tokens to
+    /// @param token The IERC20 token to rescue
     function rescueToken(address to, IERC20 token) external onlyOwner {
         uint256 total = token.balanceOf(address(this));
         token.transfer(to, total);
     }
 
-    /**
-     * @notice Admin can set base uri
-     * @param _baseURI The base uri
-     */
+    /// @notice Admin can set base uri
+    /// @param _baseURI The base uri
     function setBaseURI(string memory _baseURI) external onlyOwner {
         baseURI = _baseURI;
     }
 
     /* ----------------------- User functions ------------------------ */
 
-    /**
-     * @notice Allows users to mint a pass nft of a specified type by paying with the specified token.
-     * @param to The address that will receive the minted NFT.
-     * @param typeId The id of the pass type being minted.
-     * @param token The address of the payment token.
-     */
+    /// @notice Allows users to mint a pass nft of a specified type by paying with the specified token.
+    /// @param to The address that will receive the minted NFT.
+    /// @param typeId The id of the pass type being minted.
+    /// @param token The address of the payment token.
     function mint(address to, uint256 typeId, address token) public returns (uint256) {
         if (machineMarketAddress == address(0)) revert InvalidMachineMarketAddress();
         if (to == address(0)) revert InvalidToAddress();
@@ -102,27 +104,30 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
 
     /* ----------------------- View functions ------------------------ */
 
-    /**
-     * @notice Get token url of pass nft
-     * @param tokenId The pass nft token id
-     */
+    /// @notice Get token url of pass nft
+    /// @param tokenId The pass nft token id
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         uint256 typeId = nftTypes[tokenId];
         return string.concat(baseURI, typeId.toString());
     }
 
-    /**
-     * @notice Get duration of pass nft
-     * @param tokenId The pass nft token id
-     */
+    /// @notice Get duration of pass nft
+    /// @param tokenId The pass nft token id
     function getPassDuration(uint256 tokenId) public view returns (uint256) {
         return types[nftTypes[tokenId]].duration;
     }
 
+    /// @notice Returns the price of a pass type for a specific token
+    /// @param typeId The ID of the pass type
+    /// @param token The address of the payment token
+    /// @return The price of the pass in the specified token
     function getPassPrice(uint256 typeId, address token) public view returns (uint256) {
         return types[typeId].prices[token];
     }
 
+    /// @notice Checks if this contract supports a given interface
+    /// @param interfaceId The interface identifier, as specified in ERC-165
+    /// @return True if the contract supports the interface, false otherwise
     function supportsInterface(bytes4 interfaceId) public view override(ERC721) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
