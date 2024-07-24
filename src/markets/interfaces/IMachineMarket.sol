@@ -14,6 +14,7 @@ interface IMachineMarket {
         uint256 duration;
         address borrower;
         bool updated;
+        bool isAvailable;
     }
 
     /**
@@ -35,6 +36,11 @@ interface IMachineMarket {
      * @dev Thrown when transfer failed
      */
     error InvalidMachineId();
+
+    /**
+     * @dev Thrown when transfer failed
+     */
+    error UnavailableMachine();
 
     /**
      * @dev Thrown when transfer failed
@@ -61,13 +67,15 @@ interface IMachineMarket {
      */
     error InvalidToAddress();
 
-    event MachineListed(string machineId, uint256 machineType);
+    event MachineListed(string machineId, uint256 machineType, address owner);
 
-    event MachineBorrowed(address to, string machineId, uint256 tokenId, uint256 during, string data);
+    event MachineDelisted(string machineId);
+
+    event MachineBorrowed(address to, string machineId, uint256 tokenId, uint256 duration, bool isRenewal);
 
     event MachineRenewed(address to, string machineId, uint256 tokenId, uint256 duration);
 
-    function borrowMachine(address to, string memory machineId, uint256 tokenId, string memory data) external;
+    function borrowMachine(address to, string memory machineId, uint256 tokenId) external;
 
     function getMachineType(string memory machineId) external returns (uint256);
 

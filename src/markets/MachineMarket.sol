@@ -9,7 +9,6 @@ import "./interfaces/IMachinePassManager.sol";
 import {IMachineMarket} from "./interfaces/IMachineMarket.sol";
 
 contract MachineMarket is AccessControl, IMachineMarket {
-
     bytes32 public constant MACHINE_PROVER_ROLE = keccak256("MACHINE_PROVER");
 
     /* ----------------------- Storage ------------------------ */
@@ -44,7 +43,7 @@ contract MachineMarket is AccessControl, IMachineMarket {
      * @param machineId The machine id
      * @param machineType The machine type
      */
-    function listMachine(string memory machineId, uint256 machineType) public onlyRole(MACHINE_PROVER_ROLE) {
+    function listMachine(string memory machineId, uint256 machineType, address owner) public onlyRole(MACHINE_PROVER_ROLE) {
         if (machines[machineId].machineType != 0) {
             revert RepeatedMachineListing();
         }
@@ -53,9 +52,24 @@ contract MachineMarket is AccessControl, IMachineMarket {
             revert InvalidMachineType();
         }
 
-        machines[machineId] = Machine(machineType, 0, 0, address(0), false);
+        machines[machineId] = Machine(machineType, 0, 0, address(0), false, true);
 
-        emit MachineListed(machineId, machineType);
+        emit MachineListed(machineId, machineType, owner);
+    }
+
+    /**
+     * @notice Machine prover can delist machine
+     * @param machineId The machine id
+     */
+    function delistMachine(string memory machineId) public onlyRole(MACHINE_PROVER_ROLE) {
+        Machine storage machine = machines[machineId];
+        if (machine.machineType == 0) {
+            revert InvalidMachineId();
+        }
+
+        machine.isAvailable = false;
+
+        emit MachineDelisted(machineId);
     }
 
     /* ----------------------- User functions ------------------------ */
@@ -66,7 +80,7 @@ contract MachineMarket is AccessControl, IMachineMarket {
      * @param machineId The id of the machine being borrowed.
      * @param tokenId The pass nft tokenId.
      */
-    function borrowMachine(address to, string memory machineId, uint256 tokenId, string memory data) public {
+    function borrowMachine(address to, string memory machineId, uint256 tokenId) public {
         if (to == address(0)) {
             revert InvalidToAddress();
         }
@@ -76,7 +90,11 @@ contract MachineMarket is AccessControl, IMachineMarket {
             revert InvalidMachineId();
         }
 
-        if (machine.borrower != address(0) && (machine.updated && machine.borrowedAt + machine.duration > block.timestamp)) {
+        if (!machine.isAvailable) {
+            revert UnavailableMachine();
+        }
+
+        if (isBorrowing(machine) && machine.borrower != to) {
             revert RepeatedMachineBorrowing();
         }
 
@@ -90,42 +108,27 @@ contract MachineMarket is AccessControl, IMachineMarket {
 
         uint256 duration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
 
-        machine.borrower = to;
-        machine.duration = duration;
+        if (isBorrowing(machine) && machine.borrower == to) {
+            machine.duration += duration;
+            emit MachineBorrowed(to, machineId, tokenId, duration, true);
+            return;
+        } else {
+            machine.borrower = to;
+            machine.duration = duration;
+        }
+
         machine.updated = false;
 
-        emit MachineBorrowed(to, machineId, tokenId, duration, data);
+        emit MachineBorrowed(to, machineId, tokenId, duration, false);
     }
 
-    /**
-     * @notice Allows users to renew machine of the specified machineId by paying with the specified pass nft.
-     * @param machineId The id of the machine being borrowed.
-     * @param tokenId The pass nft tokenId.
-     */
-    function renewMachine(string memory machineId, uint256 tokenId) public {
-        Machine storage machine = machines[machineId];
-        if (machine.machineType == 0) {
-            revert InvalidMachineId();
-        }
-
-        if (machine.borrower != msg.sender) {
-            revert RenewFailed();
-        }
-
-        address passManagerAddress = passManagerAddresses[machine.machineType];
-
-        if (IERC721(passManagerAddress).ownerOf(tokenId) != msg.sender) {
-            revert InvalidPassOwner(passManagerAddress);
-        }
-
-        uint256 additionalDuration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
-
-        machine.duration += additionalDuration;
-
-        emit MachineRenewed(msg.sender, machineId, tokenId, additionalDuration);
-    }
+    /* ----------------------- View functions ------------------------ */
 
     function getMachineType(string memory machineId) public view returns (uint256) {
         return machines[machineId].machineType;
+    }
+
+    function isBorrowing(Machine memory machine) public view returns (bool) {
+        return machine.borrower != address(0) && (!machine.updated || machine.borrowedAt + machine.duration > block.timestamp);
     }
 }

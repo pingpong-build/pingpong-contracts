@@ -20,7 +20,7 @@ contract MachineMintAndBorrow {
      * @param typeId The type id of the pass NFT to mint.
      * @param paymentToken The address of the payment token.
      */
-    function mintAndBorrow( address to, string memory machineId, uint256 typeId, address paymentToken, string memory data) public {
+    function mintAndBorrow( address to, string memory machineId, uint256 typeId, address paymentToken) public {
         uint256 machineType = market.getMachineType(machineId);
 
         address passManagerAddress = market.passManagerAddresses(machineType);
@@ -33,6 +33,6 @@ contract MachineMintAndBorrow {
         uint256 tokenId = IMachinePassManager(passManagerAddress).mint(msg.sender, typeId, paymentToken);
 
         // Borrow the machine
-        market.borrowMachine(to, machineId, tokenId, data);
+        market.borrowMachine(to, machineId, tokenId);
     }
 }

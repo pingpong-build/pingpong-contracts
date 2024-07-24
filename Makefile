@@ -14,3 +14,11 @@ deploy-mul3:
 deploy-bridger:
 	forge script script/Bridger.s.sol:BridgerScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --verify --etherscan-api-key ${ETHERSCAN_API_KEY}
 
+deploy-pass:
+	forge script script/MachinePassManager.s.sol:MachinePassManagerScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
+deploy-market:
+	forge script script/MachineMarket.s.sol:MachineMarketScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
+market-prepare:
+	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy

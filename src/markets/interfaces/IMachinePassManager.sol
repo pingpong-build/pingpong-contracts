@@ -29,7 +29,7 @@ interface IMachinePassManager {
 
     event PassMinted(address to, uint256 tokenId, uint256 typeId, address token);
 
-    event TypeUpdated(uint256 typeId, address token, uint256 price);
+    event TypeUpdated(uint256 typeId, uint256 duration, address token, uint256 price);
 
     function getPassDuration(uint256 tokenId) external returns (uint256);
 

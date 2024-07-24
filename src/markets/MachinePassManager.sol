@@ -39,9 +39,10 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
      * @param token The payment token address
      * @param price The price of the pass
      */
-    function setType(uint256 typeId, address token, uint256 price) external onlyOwner {
+    function setType(uint256 typeId, uint256 duration, address token, uint256 price) external onlyOwner {
+        types[typeId].duration = duration;
         types[typeId].prices[token] = price;
-        emit TypeUpdated(typeId, token, price);
+        emit TypeUpdated(typeId, duration, token, price);
     }
 
     function withdraw(address to, IERC20 token) external onlyOwner {
