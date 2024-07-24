@@ -10,6 +10,7 @@ import {IMachineMarket} from "./interfaces/IMachineMarket.sol";
 
 contract MachineMarket is AccessControl, IMachineMarket {
     bytes32 public constant MACHINE_PROVER_ROLE = keccak256("MACHINE_PROVER");
+    bytes32 public constant MACHINE_MANAGER_ROLE = keccak256("MACHINE_MANAGER");
 
     /* ----------------------- Storage ------------------------ */
 
@@ -36,6 +37,7 @@ contract MachineMarket is AccessControl, IMachineMarket {
      */
     function setPassManagerAddress(uint256 machineType, address passManagerAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
         passManagerAddresses[machineType] = passManagerAddress;
+        emit PassManagerAddressSet(machineType, passManagerAddress);
     }
 
     /**
@@ -72,6 +74,18 @@ contract MachineMarket is AccessControl, IMachineMarket {
         emit MachineDelisted(machineId);
     }
 
+    function updateMachine(string memory machineId, uint256 borrowedAt) public onlyRole(MACHINE_MANAGER_ROLE) {
+        Machine storage machine = machines[machineId];
+        if (machine.machineType == 0) {
+            revert InvalidMachineId();
+        }
+
+        machine.borrowedAt = borrowedAt;
+        machine.updated = true;
+
+        emit MachineUpdated(machineId, borrowedAt);
+    }
+
     /* ----------------------- User functions ------------------------ */
 
     /**
@@ -81,45 +95,31 @@ contract MachineMarket is AccessControl, IMachineMarket {
      * @param tokenId The pass nft tokenId.
      */
     function borrowMachine(address to, string memory machineId, uint256 tokenId) public {
-        if (to == address(0)) {
-            revert InvalidToAddress();
-        }
+        if (to == address(0)) revert InvalidToAddress();
 
         Machine storage machine = machines[machineId];
-        if (machine.machineType == 0) {
-            revert InvalidMachineId();
-        }
+        if (machine.machineType == 0) revert InvalidMachineId();
+        if (!machine.isAvailable) revert UnavailableMachine();
 
-        if (!machine.isAvailable) {
-            revert UnavailableMachine();
-        }
-
-        if (isBorrowing(machine) && machine.borrower != to) {
-            revert RepeatedMachineBorrowing();
-        }
+        bool isBorrowingAlready = isBorrowing(machine);
+        if (isBorrowingAlready && machine.borrower != to) revert RepeatedMachineBorrowing();
 
         address passManagerAddress = passManagerAddresses[machine.machineType];
-
-        if (IERC721(passManagerAddress).ownerOf(tokenId) != msg.sender) {
-            revert InvalidPassOwner(passManagerAddress);
-        }
-
-        IERC721(passManagerAddress).transferFrom(msg.sender, address(this), tokenId);
+        if (IERC721(passManagerAddress).ownerOf(tokenId) != msg.sender) revert InvalidPassOwner(passManagerAddress);
 
         uint256 duration = IMachinePassManager(passManagerAddress).getPassDuration(tokenId);
 
-        if (isBorrowing(machine) && machine.borrower == to) {
+        if (isBorrowingAlready && machine.borrower == to) {
             machine.duration += duration;
-            emit MachineBorrowed(to, machineId, tokenId, duration, true);
-            return;
         } else {
             machine.borrower = to;
             machine.duration = duration;
         }
-
         machine.updated = false;
 
-        emit MachineBorrowed(to, machineId, tokenId, duration, false);
+        IERC721(passManagerAddress).transferFrom(msg.sender, address(this), tokenId);
+
+        emit MachineBorrowed(to, machineId, tokenId, duration, isBorrowingAlready);
     }
 
     /* ----------------------- View functions ------------------------ */

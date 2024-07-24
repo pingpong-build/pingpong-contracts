@@ -73,7 +73,9 @@ interface IMachineMarket {
 
     event MachineBorrowed(address to, string machineId, uint256 tokenId, uint256 duration, bool isRenewal);
 
-    event MachineRenewed(address to, string machineId, uint256 tokenId, uint256 duration);
+    event MachineUpdated(string machineId, uint256 borrowedAt);
+
+    event PassManagerAddressSet(uint256 indexed machineType, address passManagerAddress);
 
     function borrowMachine(address to, string memory machineId, uint256 tokenId) external;
 
