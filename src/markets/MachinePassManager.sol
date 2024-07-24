@@ -12,6 +12,9 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
 
     /* ----------------------- Storage ------------------------ */
 
+    /// @notice MachineMarket contract address
+    address public machineMarketAddress;
+
     /// @notice Base uri for computing tokenURI
     string public baseURI;
 
@@ -45,7 +48,16 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
         emit TypeUpdated(typeId, duration, token, price);
     }
 
-    function withdraw(address to, IERC20 token) external onlyOwner {
+    /**
+     * @notice Admin can set machine market address
+     * @param newMachineMarketAddress new machineMarketAddress
+     */
+    function setMachineMarketAddress(address newMachineMarketAddress) external onlyOwner {
+        machineMarketAddress = newMachineMarketAddress;
+        emit MachineMarketAddressUpdated(newMachineMarketAddress);
+    }
+
+    function rescueToken(address to, IERC20 token) external onlyOwner {
         uint256 total = token.balanceOf(address(this));
         token.transfer(to, total);
     }
@@ -67,24 +79,15 @@ contract MachinePassManager is Ownable, ERC721, IMachinePassManager {
      * @param token The address of the payment token.
      */
     function mint(address to, uint256 typeId, address token) public returns (uint256) {
-        if (to == address(0)) {
-            revert InvalidToAddress();
-        }
-
-        if (types[typeId].duration == 0) {
-            revert InvalidPassType();
-        }
+        if (machineMarketAddress == address(0)) revert InvalidMachineMarketAddress();
+        if (to == address(0)) revert InvalidToAddress();
+        if (types[typeId].duration == 0) revert InvalidPassType();
 
         uint256 price = types[typeId].prices[token];
+        if (price == 0) revert InvalidPassPriceToken();
 
-        if (price == 0) {
-            revert InvalidPassPriceToken();
-        }
-
-        bool res = IERC20(token).transferFrom(msg.sender, address(this), price);
-        if (!res) {
-            revert TransferFailed();
-        }
+        bool res = IERC20(token).transferFrom(msg.sender, machineMarketAddress, price);
+        if (!res) revert TransferFailed();
 
         uint256 tokenId = nextTokenId;
         _mint(to, tokenId);

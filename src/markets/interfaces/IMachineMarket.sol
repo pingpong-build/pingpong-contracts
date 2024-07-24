@@ -10,6 +10,7 @@ interface IMachineMarket {
      */
     struct Machine {
         uint256 machineType;
+        address owner;
         uint256 borrowedAt;
         uint256 duration;
         address borrower;
