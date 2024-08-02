@@ -20,5 +20,10 @@ deploy-pass:
 deploy-market:
 	forge script script/MachineMarket.s.sol:MachineMarketScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
 
+deploy-mining-share:
+	forge script script/MachineMarket.s.sol:MachineMarketScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
+
+
 market-prepare:
 	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
