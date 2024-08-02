@@ -6,16 +6,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-/// @title MiningRevenueShare
+/// @title MiningShareFactory
 /// @notice This contract manages the minting and management of mining revenue share NFTs
 /// @dev Inherits from Ownable and ERC721
-contract MiningRevenueShare is ERC721, Ownable {
+contract MiningShareFactory is ERC721, Ownable {
     using Strings for uint256;
 
     /* ----------------------- Storage ------------------------ */
 
     /// @notice Struct to store information about each revenue round
-    struct RevenueRound {
+    struct Round {
         uint256 totalShares;      // Total number of shares available in this round
         uint256 pricePerShare;    // Price per share in USDT
         uint256 startTime;        // Start time of the round
@@ -23,7 +23,7 @@ contract MiningRevenueShare is ERC721, Ownable {
         uint256 whitelistEndTime; // End time for whitelist minting
         mapping(address => bool) whitelist; // Whitelist of addresses
         uint256 mintedCount;      // Number of shares minted in this round
-        uint256 revenueDays;      // The number of days for which this round's revenue is allocated
+        uint256 miningDays;       // The number of days for which this round's revenue is allocated
     }
 
     /// @notice Base URI for computing tokenURI
@@ -33,13 +33,13 @@ contract MiningRevenueShare is ERC721, Ownable {
     IERC20 public usdtToken;
 
     /// @notice Mapping of round ID to RevenueRound struct
-    mapping(uint256 => RevenueRound) public revenueRounds;
+    mapping(uint256 => Round) public rounds;
 
     /// @notice Total number of rounds created
     uint256 public roundCount;
 
     /// @notice Address to collect the revenue
-    address public revenueCollector;
+    address public fundCollector;
 
     /* ----------------------- Events ------------------------ */
 
@@ -50,7 +50,7 @@ contract MiningRevenueShare is ERC721, Ownable {
     event ShareMinted(uint256 indexed roundId, address indexed buyer, uint256 shareId);
 
     /// @notice Emitted when the revenue collector address is updated
-    event RevenueCollectorUpdated(address newCollector);
+    event FundCollectorUpdated(address newCollector);
 
     /* ----------------------- Errors ------------------------ */
 
@@ -70,53 +70,53 @@ contract MiningRevenueShare is ERC721, Ownable {
 
     /// @notice Initializes the contract with USDT token address and revenue collector address
     /// @param _usdtToken Address of the USDT token contract
-    /// @param _revenueCollector Address to collect the revenue
-    constructor(address _usdtToken, address _revenueCollector) ERC721("Mining Revenue Share", "MRS") {
+    /// @param _fundCollector Address to collect the revenue
+    constructor(address _usdtToken, address _fundCollector) ERC721("Mining Share", "MS") Ownable(msg.sender) {
         usdtToken = IERC20(_usdtToken);
-        revenueCollector = _revenueCollector;
+        fundCollector = _fundCollector;
     }
 
-    /* ----------------------- External functions ------------------------ */
+    /* ----------------------- Admin functions ------------------------ */
 
-    /// @notice Set a new revenue collector address
+    /// @notice Set a new funds collector address
     /// @param _newCollector The address of the new revenue collector
-    function setRevenueCollector(address _newCollector) external onlyOwner {
-        revenueCollector = _newCollector;
-        emit RevenueCollectorUpdated(_newCollector);
+    function setFundCollector(address _newCollector) external onlyOwner {
+        fundCollector = _newCollector;
+        emit FundCollectorUpdated(_newCollector);
     }
 
-    /// @notice Create a new revenue round
+    /// @notice Create a new round
     /// @param _totalShares Total number of shares for this round
     /// @param _pricePerShare Price per share in USDT
     /// @param _startTime Start time of the round
     /// @param _endTime End time of the round
     /// @param _whitelistEndTime End time for whitelist minting
-    /// @param _revenueDays The number of days for which this round's revenue is allocated
-    function createRevenueRound(
+    /// @param _miningDays The number of days for which this round's revenue is allocated
+    function createRound(
         uint256 _totalShares,
         uint256 _pricePerShare,
         uint256 _startTime,
         uint256 _endTime,
         uint256 _whitelistEndTime,
-        uint256 _revenueDays
+        uint256 _miningDays
     ) external onlyOwner {
         roundCount++;
-        RevenueRound storage newRound = revenueRounds[roundCount];
+        Round storage newRound = rounds[roundCount];
         newRound.totalShares = _totalShares;
         newRound.pricePerShare = _pricePerShare;
         newRound.startTime = _startTime;
         newRound.endTime = _endTime;
         newRound.whitelistEndTime = _whitelistEndTime;
-        newRound.revenueDays = _revenueDays;
+        newRound.miningDays = _miningDays;
 
-        emit RoundCreated(roundCount, _totalShares, _pricePerShare, _revenueDays);
+        emit RoundCreated(roundCount, _totalShares, _pricePerShare, _miningDays);
     }
 
     /// @notice Set the whitelist for a specific round
     /// @param _roundId The ID of the round
     /// @param _addresses Array of addresses to be whitelisted
     function setWhitelist(uint256 _roundId, address[] calldata _addresses) external onlyOwner {
-        RevenueRound storage round = revenueRounds[_roundId];
+        Round storage round = rounds[_roundId];
         for (uint256 i = 0; i < _addresses.length; i++) {
             round.whitelist[_addresses[i]] = true;
         }
@@ -131,7 +131,7 @@ contract MiningRevenueShare is ERC721, Ownable {
     /// @notice Mint a share for a specific round
     /// @param _roundId The ID of the round
     function mintShare(uint256 _roundId) external {
-        RevenueRound storage round = revenueRounds[_roundId];
+        Round storage round = rounds[_roundId];
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert MintingNotActive();
         }
@@ -145,7 +145,7 @@ contract MiningRevenueShare is ERC721, Ownable {
             }
         }
 
-        usdtToken.transferFrom(msg.sender, revenueCollector, round.pricePerShare);
+        usdtToken.transferFrom(msg.sender, fundCollector, round.pricePerShare);
 
         uint256 shareId = ((_roundId - 1) * round.totalShares) + round.mintedCount + 1;
         _safeMint(msg.sender, shareId);
@@ -161,7 +161,7 @@ contract MiningRevenueShare is ERC721, Ownable {
     /// @return The ID of the round
     function getRoundIdFromShareId(uint256 _shareId) public view returns (uint256) {
         for (uint256 i = 1; i <= roundCount; i++) {
-            if (_shareId <= i * revenueRounds[i].totalShares) {
+            if (_shareId <= i * rounds[i].totalShares) {
                 return i;
             }
         }
