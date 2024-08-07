@@ -44,7 +44,7 @@ contract MiningShareFactory is ERC721, Ownable {
     /* ----------------------- Events ------------------------ */
 
     /// @notice Emitted when a new round is created
-    event RoundCreated(uint256 indexed roundId, uint256 totalShares, uint256 pricePerShare, uint256 revenueDays);
+    event RoundCreated(uint256 indexed roundId, uint256 startTime, uint256 endTime, uint256 totalShares, uint256 pricePerShare, uint256 miningDays);
 
     /// @notice Emitted when a share is minted
     event ShareMinted(uint256 indexed roundId, address indexed buyer, uint256 shareId);
@@ -109,7 +109,7 @@ contract MiningShareFactory is ERC721, Ownable {
         newRound.whitelistEndTime = _whitelistEndTime;
         newRound.miningDays = _miningDays;
 
-        emit RoundCreated(roundCount, _totalShares, _pricePerShare, _miningDays);
+        emit RoundCreated(roundCount, _startTime, _endTime, _totalShares, _pricePerShare, _miningDays);
     }
 
     /// @notice Set the whitelist for a specific round
@@ -147,9 +147,9 @@ contract MiningShareFactory is ERC721, Ownable {
 
         usdtToken.transferFrom(msg.sender, fundCollector, round.pricePerShare);
 
+        round.mintedCount++;
         uint256 shareId = ((_roundId - 1) * round.totalShares) + round.mintedCount + 1;
         _safeMint(msg.sender, shareId);
-        round.mintedCount++;
 
         emit ShareMinted(_roundId, msg.sender, shareId);
     }
