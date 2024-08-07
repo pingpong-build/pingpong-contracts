@@ -3,7 +3,8 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
@@ -11,7 +12,7 @@ import {VRFV2PlusClient} from "@chainlink/contracts/v0.8/vrf/dev/libraries/VRFV2
 /// @notice This contract manages a continuous mining-related lottery system with multiple rounds
 /// @dev Uses Chainlink VRF for randomness and issues NFTs as lottery tickets
 contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
-    using SafeERC20 for IERC20;
+    using Strings for uint256;
 
     /* ----------------------- Structs ------------------------ */
 
@@ -22,7 +23,7 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
         uint256 pricePerTicket;   // Price of each ticket in USDT
         uint256 totalRange;
         uint256 winningRange;     // Winning range (0 to this number will win)
-        uint256 ticketsSold;      // Number of tickets sold in this round
+        uint256 mintedCount;      // Number of ticket minted in this round
         uint256 miningDays;       // Number of days of mining revenue this round represents
     }
 
@@ -69,6 +70,8 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
     error RequestIdNotFound();
 
     /* ----------------------- Storage ------------------------ */
+    /// @notice Base URI for computing tokenURI
+    string public baseURI;
 
     // Depends on the number of requested values that you want sent to the
     // fulfillRandomWords() function. Storing each word costs about 20,000 gas,
@@ -84,6 +87,8 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
     // For this example, retrieve 2 random values in one request.
     // Cannot exceed VRFCoordinatorV2_5.MAX_NUM_WORDS.
     uint32 public numWords = 2;
+
+    uint256 private constant ROUND_ID_SHIFT = 40;
 
     /// @notice USDT token contract
     IERC20 public immutable usdtToken;
@@ -131,6 +136,19 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
         s_keyHash = _keyHash;
     }
 
+    /// @notice Set the base URI for computing tokenURI
+    /// @param _baseURI The base URI
+    function setBaseURI(string memory _baseURI) external onlyOwner {
+        baseURI = _baseURI;
+    }
+
+    /// @notice Set a new funds collector address
+    /// @param _newCollector The address of the new revenue collector
+    function setFundCollector(address _newCollector) external onlyOwner {
+        fundCollector = _newCollector;
+        emit FundCollectorUpdated(_newCollector);
+    }
+
     /// @notice Create a new lottery round
     /// @param _startTime Start time of the round
     /// @param _endTime End time of the round
@@ -163,23 +181,24 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
             revert MintingNotActive();
         }
 
-        usdtToken.safeTransferFrom(msg.sender, address(this), round.pricePerTicket);
+        usdtToken.transferFrom(msg.sender, fundCollector, round.pricePerTicket);
 
-        uint256 newTicketId = round.ticketsSold + 1;
-        _safeMint(msg.sender, newTicketId);
+        round.mintedCount++;
 
-        tickets[newTicketId] = Ticket({
+        uint256 ticketId = (_roundId << ROUND_ID_SHIFT) | round.mintedCount;
+
+        tickets[ticketId] = Ticket({
             roundId: _roundId,
             resultDetermined: false,
             randomNumber: 0,
             won: false
         });
 
-        round.ticketsSold++;
+        requestRandomness(ticketId);
 
-        requestRandomness(newTicketId);
+        _safeMint(msg.sender, ticketId);
 
-        emit TicketMinted(newTicketId, msg.sender, _roundId);
+        emit TicketMinted(ticketId, msg.sender, _roundId);
     }
 
     /* ----------------------- Internal Functions ------------------------ */
@@ -220,5 +239,20 @@ contract MiningLotteryFactory is ERC721, VRFConsumerBaseV2Plus {
         ticket.resultDetermined = true;
 
         emit TicketResultDetermined(ticketId, ticket.roundId, randomNumber, ticket.won);
+    }
+
+    /// @notice Get the round ID for a specific ticket
+    /// @param _ticketId The ID of the ticket
+    /// @return The ID of the round the ticket belongs to
+    function getRoundIdByTicketId(uint256 _ticketId) public pure returns (uint256) {
+        return _ticketId >> ROUND_ID_SHIFT;
+    }
+
+    /// @notice Get token URI of share NFT
+    /// @param tokenId The share NFT token id
+    /// @return The token URI
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        uint256 roundId = getRoundIdByTicketId(tokenId);
+        return string.concat(baseURI, roundId.toString());
     }
 }

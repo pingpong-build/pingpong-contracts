@@ -102,10 +102,10 @@ contract MiningShareFactory is ERC721, Ownable {
     ) external onlyOwner {
         roundCount++;
         Round storage newRound = rounds[roundCount];
-        newRound.totalShares = _totalShares;
-        newRound.pricePerShare = _pricePerShare;
         newRound.startTime = _startTime;
         newRound.endTime = _endTime;
+        newRound.totalShares = _totalShares;
+        newRound.pricePerShare = _pricePerShare;
         newRound.whitelistEndTime = _whitelistEndTime;
         newRound.miningDays = _miningDays;
 
