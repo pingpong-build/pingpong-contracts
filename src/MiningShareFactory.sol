@@ -54,11 +54,11 @@ contract MiningShareFactory is ERC721, Ownable {
 
     /* ----------------------- Errors ------------------------ */
 
+    /// @notice Error thrown when trying to mint more shares than available
+    error InsufficientShares();
+
     /// @notice Error thrown when minting is not active
     error MintingNotActive();
-
-    /// @notice Error thrown when all shares have been minted
-    error AllSharesMinted();
 
     /// @notice Error thrown when a non-whitelisted address tries to mint during whitelist period
     error NotInWhitelist();
@@ -130,13 +130,25 @@ contract MiningShareFactory is ERC721, Ownable {
 
     /// @notice Mint a share for a specific round
     /// @param _roundId The ID of the round
-    function mintShare(uint256 _roundId) external {
+    function mint(uint256 _roundId) external {
+        _mintShares(_roundId, 1);
+    }
+
+    /// @notice Batch mint shares for a specific round
+    /// @param _roundId The ID of the round
+    /// @param _quantity The number of shares to mint
+    function batchMint(uint256 _roundId, uint256 _quantity) external {
+        _mintShares(_roundId, _quantity);
+    }
+
+    function _mintShares(uint256 _roundId, uint256 _quantity) internal {
         Round storage round = rounds[_roundId];
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert MintingNotActive();
         }
-        if (round.mintedCount >= round.totalShares) {
-            revert AllSharesMinted();
+
+        if (round.mintedCount + _quantity > round.totalShares) {
+            revert InsufficientShares();
         }
 
         if (block.timestamp <= round.whitelistEndTime) {
@@ -145,13 +157,16 @@ contract MiningShareFactory is ERC721, Ownable {
             }
         }
 
-        usdtToken.transferFrom(msg.sender, fundCollector, round.pricePerShare);
+        uint256 totalCost = round.pricePerShare * _quantity;
+        usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
 
-        round.mintedCount++;
-        uint256 shareId = ((_roundId - 1) * round.totalShares) + round.mintedCount + 1;
-        _safeMint(msg.sender, shareId);
+        for (uint256 i = 0; i < _quantity; i++) {
+            uint256 shareId = ((_roundId - 1) * round.totalShares) + round.mintedCount + i;
+            _safeMint(msg.sender, shareId);
+            emit ShareMinted(_roundId, msg.sender, shareId);
+        }
 
-        emit ShareMinted(_roundId, msg.sender, shareId);
+        round.mintedCount += _quantity;
     }
 
     /* ----------------------- View functions ------------------------ */
