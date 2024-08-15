@@ -17,9 +17,9 @@ contract MiningLotteryFactoryScript is Script {
         vm.startBroadcast();
 
 //        FaucetToken tUSDT = new FaucetToken("tUSDT", "tUSDT");
-        MiningLotteryFactory msf = new MiningLotteryFactory(tUSDT, collector);
-        msf.createRound(1000, 10 ether, 1722584384, 1722584384 + 3 * 24 * 3600, 1722584384 + 1 * 24 * 3600, 30);
+//        MiningLotteryFactory msf = new MiningLotteryFactory(tUSDT, collector);
+//        msf.createRound(1000, 10 ether, 1722584384, 1722584384 + 3 * 24 * 3600, 1722584384 + 1 * 24 * 3600, 30);
 
-        vm.stopBroadcast();
+//        vm.stopBroadcast();
     }
 }

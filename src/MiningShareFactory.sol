@@ -3,14 +3,18 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title MiningShareFactory
 /// @notice This contract manages the minting and management of mining revenue share NFTs
 /// @dev Inherits from Ownable and ERC721
-contract MiningShareFactory is ERC721, Ownable {
+contract MiningShareFactory is ERC721, AccessControl {
     using Strings for uint256;
+
+    /* ----------------------- Constants ------------------------ */
+
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     /* ----------------------- Storage ------------------------ */
 
@@ -71,16 +75,19 @@ contract MiningShareFactory is ERC721, Ownable {
     /// @notice Initializes the contract with USDT token address and revenue collector address
     /// @param _usdtToken Address of the USDT token contract
     /// @param _fundCollector Address to collect the revenue
-    constructor(address _usdtToken, address _fundCollector) ERC721("Mining Share", "MS") Ownable(msg.sender) {
+    constructor(address _usdtToken, address _fundCollector) ERC721("Mining Share", "MS") {
         usdtToken = IERC20(_usdtToken);
         fundCollector = _fundCollector;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(OPERATOR_ROLE, msg.sender);
     }
 
     /* ----------------------- Admin functions ------------------------ */
 
     /// @notice Set a new funds collector address
     /// @param _newCollector The address of the new revenue collector
-    function setFundCollector(address _newCollector) external onlyOwner {
+    function setFundCollector(address _newCollector) external onlyRole(DEFAULT_ADMIN_ROLE) {
         fundCollector = _newCollector;
         emit FundCollectorUpdated(_newCollector);
     }
@@ -99,7 +106,7 @@ contract MiningShareFactory is ERC721, Ownable {
         uint256 _endTime,
         uint256 _whitelistEndTime,
         uint256 _miningDays
-    ) external onlyOwner {
+    ) external onlyRole(OPERATOR_ROLE) {
         roundCount++;
         Round storage newRound = rounds[roundCount];
         newRound.startTime = _startTime;
@@ -115,7 +122,7 @@ contract MiningShareFactory is ERC721, Ownable {
     /// @notice Set the whitelist for a specific round
     /// @param _roundId The ID of the round
     /// @param _addresses Array of addresses to be whitelisted
-    function setWhitelist(uint256 _roundId, address[] calldata _addresses) external onlyOwner {
+    function setWhitelist(uint256 _roundId, address[] calldata _addresses) external onlyRole(OPERATOR_ROLE) {
         Round storage round = rounds[_roundId];
         for (uint256 i = 0; i < _addresses.length; i++) {
             round.whitelist[_addresses[i]] = true;
@@ -124,7 +131,7 @@ contract MiningShareFactory is ERC721, Ownable {
 
     /// @notice Set the base URI for computing tokenURI
     /// @param _baseURI The base URI
-    function setBaseURI(string memory _baseURI) external onlyOwner {
+    function setBaseURI(string memory _baseURI) external onlyRole(OPERATOR_ROLE) {
         baseURI = _baseURI;
     }
 
@@ -189,5 +196,9 @@ contract MiningShareFactory is ERC721, Ownable {
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         uint256 roundId = getRoundIdFromShareId(tokenId);
         return string.concat(baseURI, roundId.toString());
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }
