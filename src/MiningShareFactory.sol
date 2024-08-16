@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title MiningShareFactory
 /// @notice This contract manages the minting and management of mining revenue share NFTs
 /// @dev Inherits from Ownable and ERC721
-contract MiningShareFactory is ERC721, AccessControl {
+contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     using Strings for uint256;
 
     /* ----------------------- Constants ------------------------ */
@@ -139,14 +140,14 @@ contract MiningShareFactory is ERC721, AccessControl {
 
     /// @notice Mint a share for a specific round
     /// @param _roundId The ID of the round
-    function mint(uint256 _roundId) external {
+    function mint(uint256 _roundId) external nonReentrant {
         _mintShares(_roundId, 1);
     }
 
     /// @notice Batch mint shares for a specific round
     /// @param _roundId The ID of the round
     /// @param _quantity The number of shares to mint
-    function batchMint(uint256 _roundId, uint256 _quantity) external {
+    function batchMint(uint256 _roundId, uint256 _quantity) external nonReentrant {
         _mintShares(_roundId, _quantity);
     }
 
