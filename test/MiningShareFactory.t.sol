@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {Counter} from "../src/Counter.sol";
-import "../src/MiningShareFactory.sol";
+import {MiningShareFactory} from "../src/MiningShareFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockUSDT is ERC20 {
@@ -13,6 +13,8 @@ contract MockUSDT is ERC20 {
 }
 
 contract MiningShareFactoryTest is Test {
+    uint256 public constant ROUND_ID_SHIFT = 128;
+
     MiningShareFactory public factory;
     MockUSDT public usdt;
     address public owner;
@@ -42,10 +44,11 @@ contract MiningShareFactoryTest is Test {
         uint256 whitelistEndTime = startTime + 12 hours;
         uint256 miningDays = 30;
 
-        factory.createRound(totalShares, pricePerShare, startTime, endTime, whitelistEndTime, miningDays);
+        factory.createRound(0, totalShares, pricePerShare, startTime, endTime, whitelistEndTime, miningDays);
 
-        (uint256 _totalShares, uint256 _pricePerShare, uint256 _startTime, uint256 _endTime, uint256 _whitelistEndTime, uint256 _mintedCount, uint256 _miningDays) = factory.rounds(1);
+        (uint256 _roundType, uint256 _totalShares, uint256 _pricePerShare, uint256 _startTime, uint256 _endTime, uint256 _whitelistEndTime, uint256 _mintedCount, uint256 _miningDays) = factory.rounds(1);
 
+        assertEq(_roundType, 0);
         assertEq(_totalShares, totalShares);
         assertEq(_pricePerShare, pricePerShare);
         assertEq(_startTime, startTime);
@@ -60,7 +63,7 @@ contract MiningShareFactoryTest is Test {
         whitelistedAddresses[0] = user1;
         whitelistedAddresses[1] = user2;
 
-        factory.createRound(100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
         factory.setWhitelist(1, whitelistedAddresses);
 
 //        assertTrue(factory.rounds(1).whitelist[user1]);
@@ -87,7 +90,7 @@ contract MiningShareFactoryTest is Test {
 
     function testMint() public {
         uint256 pricePerShare = 100 * 10**usdt.decimals(); // 100 USDT
-        factory.createRound(100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.warp(block.timestamp + 13 hours); // Move to whitelist period
 
@@ -97,14 +100,14 @@ contract MiningShareFactoryTest is Test {
         vm.stopPrank();
 
         assertEq(factory.balanceOf(user1), 1);
-        assertEq(factory.ownerOf(0), user1);
+        assertEq(factory.ownerOf(1 << ROUND_ID_SHIFT | 0), user1);
         assertEq(usdt.balanceOf(fundCollector), pricePerShare);
     }
 
     function testBatchMint() public {
         uint256 pricePerShare = 100 * 10**usdt.decimals(); // 100 USDT
         uint256 quantity = 5;
-        factory.createRound(100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.warp(block.timestamp + 13 hours); // Move to whitelist period
 
@@ -115,14 +118,14 @@ contract MiningShareFactoryTest is Test {
 
         assertEq(factory.balanceOf(user1), quantity);
         for (uint256 i = 0; i < quantity; i++) {
-            assertEq(factory.ownerOf(i), user1);
+            assertEq(factory.ownerOf(1 << ROUND_ID_SHIFT | i), user1);
         }
         assertEq(usdt.balanceOf(fundCollector), pricePerShare * quantity);
     }
 
     function testFailMintBeforeStart() public {
         uint256 pricePerShare = 100 * 10**usdt.decimals(); // 100 USDT
-        factory.createRound(100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 2 hours, 30);
+        factory.createRound(0, 100, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 2 hours, 30);
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare);
@@ -132,7 +135,7 @@ contract MiningShareFactoryTest is Test {
 
     function testFailMintAfterEnd() public {
         uint256 pricePerShare = 100 * 10**usdt.decimals(); // 100 USDT
-        factory.createRound(100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 hours, block.timestamp + 30 minutes, 30);
+        factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 hours, block.timestamp + 30 minutes, 30);
 
         vm.warp(block.timestamp + 2 hours);
         usdt.approve(address(factory), pricePerShare);
@@ -142,7 +145,7 @@ contract MiningShareFactoryTest is Test {
 
     function testFailMintWhenNotWhitelisted() public {
         uint256 pricePerShare = 100 * 10**usdt.decimals(); // 100 USDT
-        factory.createRound(100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         address[] memory whitelistedAddresses = new address[](1);
         whitelistedAddresses[0] = user2;
@@ -156,7 +159,7 @@ contract MiningShareFactoryTest is Test {
     function testFailMintWhenAllSharesMinted() public {
         uint256 totalShares = 2;
         uint256 pricePerShare = 100 * 10**usdt.decimals();
-        factory.createRound(totalShares, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, totalShares, pricePerShare, block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare * (totalShares + 1));
@@ -167,7 +170,7 @@ contract MiningShareFactoryTest is Test {
     }
 
     function testFailBatchMintWithZeroQuantity() public {
-        factory.createRound(100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.prank(user1);
         factory.batchMint(1, 0);
@@ -183,13 +186,13 @@ contract MiningShareFactoryTest is Test {
 //        assertEq(factory.getRoundIdFromShareId(299), 2);
 //    }
 
-    function testFailGetRoundIdFromInvalidShareId() public view {
-        factory.getRoundIdFromShareId(300); // This should fail as we only have 300 shares in total
-    }
+//    function testFailGetRoundIdFromInvalidShareId() public view {
+//        factory.getRoundIdFromShareId(300); // This should fail as we only have 300 shares in total
+//    }
 
     function testTokenURI() public {
         factory.setBaseURI("https://example.com/metadata/");
-        factory.createRound(100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
+        factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.warp(block.timestamp + 13 hours);
         vm.startPrank(user1);
@@ -197,6 +200,6 @@ contract MiningShareFactoryTest is Test {
         factory.mint(1);
         vm.stopPrank();
 
-        assertEq(factory.tokenURI(0), "https://example.com/metadata/1");
+        assertEq(factory.tokenURI(1 << ROUND_ID_SHIFT | 0), "https://example.com/metadata/1");
     }
 }

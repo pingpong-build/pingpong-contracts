@@ -16,10 +16,13 @@ contract MiningShareFactory is ERC721, AccessControl {
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
+    uint256 public constant ROUND_ID_SHIFT = 128;
+
     /* ----------------------- Storage ------------------------ */
 
     /// @notice Struct to store information about each revenue round
     struct Round {
+        uint256 roundType;        // Type of the round
         uint256 totalShares;      // Total number of shares available in this round
         uint256 pricePerShare;    // Price per share in USDT
         uint256 startTime;        // Start time of the round
@@ -48,7 +51,7 @@ contract MiningShareFactory is ERC721, AccessControl {
     /* ----------------------- Events ------------------------ */
 
     /// @notice Emitted when a new round is created
-    event RoundCreated(uint256 indexed roundId, uint256 startTime, uint256 endTime, uint256 totalShares, uint256 pricePerShare, uint256 miningDays);
+    event RoundCreated(uint256 indexed roundId, uint256 roundType, uint256 startTime, uint256 endTime, uint256 totalShares, uint256 pricePerShare, uint256 miningDays);
 
     /// @notice Emitted when a share is minted
     event ShareMinted(uint256 indexed roundId, address indexed buyer, uint256 shareId);
@@ -66,9 +69,6 @@ contract MiningShareFactory is ERC721, AccessControl {
 
     /// @notice Error thrown when a non-whitelisted address tries to mint during whitelist period
     error NotInWhitelist();
-
-    /// @notice Error thrown when an invalid share ID is provided
-    error InvalidShareId();
 
     /* ----------------------- Constructor ------------------------ */
 
@@ -100,6 +100,7 @@ contract MiningShareFactory is ERC721, AccessControl {
     /// @param _whitelistEndTime End time for whitelist minting
     /// @param _miningDays The number of days for which this round's revenue is allocated
     function createRound(
+        uint256 _roundType,
         uint256 _totalShares,
         uint256 _pricePerShare,
         uint256 _startTime,
@@ -109,6 +110,7 @@ contract MiningShareFactory is ERC721, AccessControl {
     ) external onlyRole(OPERATOR_ROLE) {
         roundCount++;
         Round storage newRound = rounds[roundCount];
+        newRound.roundType = _roundType;
         newRound.startTime = _startTime;
         newRound.endTime = _endTime;
         newRound.totalShares = _totalShares;
@@ -116,7 +118,7 @@ contract MiningShareFactory is ERC721, AccessControl {
         newRound.whitelistEndTime = _whitelistEndTime;
         newRound.miningDays = _miningDays;
 
-        emit RoundCreated(roundCount, _startTime, _endTime, _totalShares, _pricePerShare, _miningDays);
+        emit RoundCreated(roundCount, _roundType, _startTime, _endTime, _totalShares, _pricePerShare, _miningDays);
     }
 
     /// @notice Set the whitelist for a specific round
@@ -168,7 +170,7 @@ contract MiningShareFactory is ERC721, AccessControl {
         usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
 
         for (uint256 i = 0; i < _quantity; i++) {
-            uint256 shareId = ((_roundId - 1) * round.totalShares) + round.mintedCount + i;
+            uint256 shareId = (_roundId << ROUND_ID_SHIFT) | (round.mintedCount + i);
             _safeMint(msg.sender, shareId);
             emit ShareMinted(_roundId, msg.sender, shareId);
         }
@@ -181,13 +183,8 @@ contract MiningShareFactory is ERC721, AccessControl {
     /// @notice Get the round ID from a share ID
     /// @param _shareId The ID of the share
     /// @return The ID of the round
-    function getRoundIdFromShareId(uint256 _shareId) public view returns (uint256) {
-        for (uint256 i = 1; i <= roundCount; i++) {
-            if (_shareId <= i * rounds[i].totalShares) {
-                return i;
-            }
-        }
-        revert InvalidShareId();
+    function getRoundIdFromShareId(uint256 _shareId) public pure returns (uint256) {
+        return _shareId >> ROUND_ID_SHIFT;
     }
 
     /// @notice Get token URI of share NFT
