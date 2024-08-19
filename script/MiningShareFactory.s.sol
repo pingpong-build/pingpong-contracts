@@ -18,7 +18,18 @@ contract MiningShareFactoryScript is Script {
 
 //        FaucetToken tUSDT = new FaucetToken("tUSDT", "tUSDT");
         MiningShareFactory msf = new MiningShareFactory(tUSDT, collector);
-        msf.createRound(0, 1000, 10 ether, 1722584384, 1722584384 + 3 * 24 * 3600, 1722584384 + 1 * 24 * 3600, 30);
+        msf.createRound(0, 1000, 10 ether, 1724048635, 1724048635 + 7 * 24 * 3600, 1724048635 + 0 * 24 * 3600, 30);
+
+        vm.stopBroadcast();
+    }
+
+    function mint() public {
+        vm.startBroadcast();
+
+        MiningShareFactory msf = MiningShareFactory(0xC11705DfC88141B01d79187d0C01CcF1c182Ddc5);
+        FaucetToken tUSDT = FaucetToken(tUSDT);
+        tUSDT.approve(address(msf), 1000 ether);
+        msf.mint(1);
 
         vm.stopBroadcast();
     }

@@ -23,5 +23,8 @@ deploy-market:
 deploy-mining-share:
 	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
 
+mint-mining-share:
+	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --sig "mint()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
 market-prepare:
 	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
