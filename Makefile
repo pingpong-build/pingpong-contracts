@@ -28,3 +28,6 @@ mint-mining-share:
 
 market-prepare:
 	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
+build:
+	forge build
