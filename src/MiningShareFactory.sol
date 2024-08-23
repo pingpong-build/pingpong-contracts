@@ -60,7 +60,17 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Emitted when the revenue collector address is updated
     event FundCollectorUpdated(address newCollector);
 
+    /// @notice Emitted when addresses are added to the whitelist for a round
+    event WhitelistUpdated(uint256 indexed roundId, address[] addresses);
+
+
     /* ----------------------- Errors ------------------------ */
+
+    /// @notice Error thrown when round time parameters are invalid
+    error InvalidRoundTime();
+
+    /// @notice Error thrown when an invalid address is provided
+    error InvalidAddress();
 
     /// @notice Error thrown when trying to mint more shares than available
     error InsufficientShares();
@@ -71,12 +81,19 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Error thrown when a non-whitelisted address tries to mint during whitelist period
     error NotInWhitelist();
 
+    /// @notice Error thrown when ERC20 transfer fails
+    error ERC20TransferFailed();
+
     /* ----------------------- Constructor ------------------------ */
 
     /// @notice Initializes the contract with USDT token address and revenue collector address
     /// @param _usdtToken Address of the USDT token contract
     /// @param _fundCollector Address to collect the revenue
     constructor(address _usdtToken, address _fundCollector) ERC721("Mining Share", "MS") {
+        if (_usdtToken == address(0) || _fundCollector == address(0)) {
+            revert InvalidAddress();
+        }
+
         usdtToken = IERC20(_usdtToken);
         fundCollector = _fundCollector;
 
@@ -89,6 +106,9 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Set a new funds collector address
     /// @param _newCollector The address of the new revenue collector
     function setFundCollector(address _newCollector) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_newCollector == address(0)) {
+            revert InvalidAddress();
+        }
         fundCollector = _newCollector;
         emit FundCollectorUpdated(_newCollector);
     }
@@ -109,6 +129,18 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
         uint256 _whitelistEndTime,
         uint256 _miningDays
     ) external onlyRole(OPERATOR_ROLE) {
+        if (_startTime >= _endTime) {
+            revert InvalidRoundTime();
+        }
+
+        if (_endTime <= block.timestamp) {
+            revert InvalidRoundTime();
+        }
+
+        if (_whitelistEndTime < _startTime || _whitelistEndTime > _endTime) {
+            revert InvalidRoundTime();
+        }
+
         roundCount++;
         Round storage newRound = rounds[roundCount];
         newRound.roundType = _roundType;
@@ -130,6 +162,8 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
         for (uint256 i = 0; i < _addresses.length; i++) {
             round.whitelist[_addresses[i]] = true;
         }
+
+        emit WhitelistUpdated(_roundId, _addresses);
     }
 
     /// @notice Set the base URI for computing tokenURI
@@ -168,7 +202,10 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
         }
 
         uint256 totalCost = round.pricePerShare * _quantity;
-        usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
+        bool success = usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
+        if (!success) {
+            revert ERC20TransferFailed();
+        }
 
         for (uint256 i = 0; i < _quantity; i++) {
             uint256 shareId = (_roundId << ROUND_ID_SHIFT) | (round.mintedCount + i);

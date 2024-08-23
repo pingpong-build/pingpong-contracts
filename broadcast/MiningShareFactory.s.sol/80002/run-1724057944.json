@@ -1,0 +1,35 @@
+{
+  "transactions": [
+    {
+      "hash": "0x9a1e300f563c6320d50eeefee11a921176511d5f7ab5c1c8e953c94456638373",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0xC11705DfC88141B01d79187d0C01CcF1c182Ddc5",
+      "function": "setBaseURI(string)",
+      "arguments": [
+        "\"https://resource.pingpong.build/static/future/\""
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0xbfe5e7792a91d6f91626d0f08c8052702c9b9c51",
+        "to": "0xc11705dfc88141b01d79187d0c01ccf1c182ddc5",
+        "gas": "0x1f105",
+        "value": "0x0",
+        "data": "0x55f804b30000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002e68747470733a2f2f7265736f757263652e70696e67706f6e672e6275696c642f7374617469632f6675747572652f000000000000000000000000000000000000",
+        "nonce": "0x1c"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0x9a1e300f563c6320d50eeefee11a921176511d5f7ab5c1c8e953c94456638373"
+  ],
+  "returns": {},
+  "timestamp": 1724057944,
+  "chain": 80002,
+  "multi": false,
+  "commit": "f5e48c9"
+}

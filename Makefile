@@ -26,8 +26,18 @@ deploy-mining-share:
 mint-mining-share:
 	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --sig "mint()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
 
+grant-mining-share:
+	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --sig "grant()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+
 market-prepare:
 	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
 
+<<<<<<< Updated upstream
 build:
 	forge build
+=======
+invoke-msf-%:
+	$(eval CMD := $(subst invoke-msf-,,$@))
+	@echo "Invoke msf $(CMD) function"
+	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --sig "$(CMD)()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
+>>>>>>> Stashed changes
