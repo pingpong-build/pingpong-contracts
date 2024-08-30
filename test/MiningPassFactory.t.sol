@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {Counter} from "../src/Counter.sol";
-import {MiningShareFactory} from "../src/MiningShareFactory.sol";
+import {MiningPassFactory} from "../src/MiningPassFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockUSDT is ERC20 {
@@ -15,7 +15,7 @@ contract MockUSDT is ERC20 {
 contract MiningShareFactoryTest is Test {
     uint256 public constant ROUND_ID_SHIFT = 128;
 
-    MiningShareFactory public factory;
+    MiningPassFactory public factory;
     MockUSDT public usdt;
     address public owner;
     address public user1;
@@ -29,7 +29,7 @@ contract MiningShareFactoryTest is Test {
         fundCollector = address(0x3);
 
         usdt = new MockUSDT();
-        factory = new MiningShareFactory(address(usdt), fundCollector);
+        factory = new MiningPassFactory(address(usdt), fundCollector);
 
         // Transfer some USDT to users for testing
         usdt.transfer(user1, 10000 * 10**usdt.decimals());

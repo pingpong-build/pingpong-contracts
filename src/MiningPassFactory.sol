@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title MiningShareFactory
+/// @title MiningPassFactory
 /// @notice This contract manages the minting and management of mining revenue share NFTs
 /// @dev Inherits from Ownable and ERC721
-contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
+contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
     using Strings for uint256;
 
     /* ----------------------- Constants ------------------------ */
@@ -30,6 +30,7 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
         uint256 endTime;          // End time of the round
         uint256 whitelistEndTime; // End time for whitelist minting
         mapping(address => bool) whitelist; // Whitelist of addresses
+        mapping(address => uint256) discountList; // Discount list of addresses with their discount rates
         uint256 mintedCount;      // Number of shares minted in this round
         uint256 miningDays;       // The number of days for which this round's revenue is allocated
     }
@@ -57,11 +58,12 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Emitted when a share is minted
     event ShareMinted(uint256 indexed roundId, address indexed buyer, uint256 shareId);
 
-    /// @notice Emitted when the revenue collector address is updated
-    event FundCollectorUpdated(address newCollector);
-
     /// @notice Emitted when addresses are added to the whitelist for a round
     event WhitelistUpdated(uint256 indexed roundId, address[] addresses);
+
+    /// @notice Emitted when discount list is updated for a round
+    event DiscountListUpdated(uint256 indexed roundId, address[] addresses, uint256[] discountRates);
+
 
 
     /* ----------------------- Errors ------------------------ */
@@ -84,12 +86,18 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Error thrown when ERC20 transfer fails
     error ERC20TransferFailed();
 
+    /// @notice Error thrown when an invalid discount rate is provided
+    error InvalidDiscountRate();
+
+    /// @notice Error thrown when an invalid discount list is provided
+    error InvalidDiscountList();
+
     /* ----------------------- Constructor ------------------------ */
 
     /// @notice Initializes the contract with USDT token address and revenue collector address
     /// @param _usdtToken Address of the USDT token contract
     /// @param _fundCollector Address to collect the revenue
-    constructor(address _usdtToken, address _fundCollector) ERC721("Mining Share", "MS") {
+    constructor(address _usdtToken, address _fundCollector) ERC721("Multi-mining Pass", "PPMT") {
         if (_usdtToken == address(0) || _fundCollector == address(0)) {
             revert InvalidAddress();
         }
@@ -102,16 +110,6 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
     }
 
     /* ----------------------- Admin functions ------------------------ */
-
-    /// @notice Set a new funds collector address
-    /// @param _newCollector The address of the new revenue collector
-    function setFundCollector(address _newCollector) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_newCollector == address(0)) {
-            revert InvalidAddress();
-        }
-        fundCollector = _newCollector;
-        emit FundCollectorUpdated(_newCollector);
-    }
 
     /// @notice Create a new round
     /// @param _totalShares Total number of shares for this round
@@ -166,6 +164,25 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
         emit WhitelistUpdated(_roundId, _addresses);
     }
 
+    /// @notice Set the discount list for a specific round
+    /// @param _roundId The ID of the round
+    /// @param _addresses Array of addresses to be added to the discount list
+    /// @param _discountRates Array of corresponding discount rates (100 means no discount, 50 means 50% discount)
+    function setDiscountList(uint256 _roundId, address[] calldata _addresses, uint256[] calldata _discountRates) external onlyRole(OPERATOR_ROLE) {
+        if (_addresses.length != _discountRates.length) {
+            revert InvalidDiscountList();
+        }
+
+        Round storage round = rounds[_roundId];
+
+        for (uint256 i = 0; i < _addresses.length; i++) {
+            if (_discountRates[i] > 100) revert InvalidDiscountRate();
+            round.discountList[_addresses[i]] = _discountRates[i];
+        }
+
+        emit DiscountListUpdated(_roundId, _addresses, _discountRates);
+    }
+
     /// @notice Set the base URI for computing tokenURI
     /// @param _baseURI The base URI
     function setBaseURI(string memory _baseURI) external onlyRole(OPERATOR_ROLE) {
@@ -201,7 +218,9 @@ contract MiningShareFactory is ERC721, AccessControl, ReentrancyGuard {
             }
         }
 
-        uint256 totalCost = round.pricePerShare * _quantity;
+        uint256 discountRate = round.discountList[msg.sender];
+        uint256 totalCost = round.pricePerShare * _quantity * (100 - discountRate) / 100;
+
         bool success = usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
         if (!success) {
             revert ERC20TransferFailed();
