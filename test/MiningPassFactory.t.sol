@@ -29,7 +29,7 @@ contract MiningShareFactoryTest is Test {
         fundCollector = address(0x3);
 
         usdt = new MockUSDT();
-        factory = new MiningPassFactory(address(usdt), fundCollector);
+        factory = new MiningPassFactory(address(usdt), fundCollector, "https://example.com/metadata/");
 
         // Transfer some USDT to users for testing
         usdt.transfer(user1, 10000 * 10**usdt.decimals());
@@ -75,17 +75,17 @@ contract MiningShareFactoryTest is Test {
 
         vm.startPrank(user1);
         usdt.approve(address(factory), 100 * 10**usdt.decimals());
-        factory.mint(1); // This should succeed for user1
+        factory.mint(1, 1); // This should succeed for user1
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdt.approve(address(factory), 100 * 10**usdt.decimals());
-        factory.mint(1); // This should succeed for user2
+        factory.mint(1, 1); // This should succeed for user2
         vm.stopPrank();
 
         vm.expectRevert(); // This should fail for non-whitelisted address
         vm.prank(address(0x4));
-        factory.mint(1);
+        factory.mint(1, 1);
     }
 
     function testMint() public {
@@ -96,11 +96,10 @@ contract MiningShareFactoryTest is Test {
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare);
-        factory.mint(1);
+        factory.mint(1, 1);
         vm.stopPrank();
 
-        assertEq(factory.balanceOf(user1), 1);
-        assertEq(factory.ownerOf(1 << ROUND_ID_SHIFT | 0), user1);
+        assertEq(factory.balanceOf(user1, 1), 1);
         assertEq(usdt.balanceOf(fundCollector), pricePerShare);
     }
 
@@ -113,13 +112,10 @@ contract MiningShareFactoryTest is Test {
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare * quantity);
-        factory.batchMint(1, quantity);
+        factory.mint(1, quantity);
         vm.stopPrank();
 
-        assertEq(factory.balanceOf(user1), quantity);
-        for (uint256 i = 0; i < quantity; i++) {
-            assertEq(factory.ownerOf(1 << ROUND_ID_SHIFT | i), user1);
-        }
+        assertEq(factory.balanceOf(user1, 1), quantity);
         assertEq(usdt.balanceOf(fundCollector), pricePerShare * quantity);
     }
 
@@ -129,7 +125,7 @@ contract MiningShareFactoryTest is Test {
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare);
-        factory.mint(1);
+        factory.mint(1, 1);
         vm.stopPrank();
     }
 
@@ -140,7 +136,7 @@ contract MiningShareFactoryTest is Test {
         vm.warp(block.timestamp + 2 hours);
         usdt.approve(address(factory), pricePerShare);
         vm.prank(user1);
-        factory.mint(1);
+        factory.mint(1, 1);
     }
 
     function testFailMintWhenNotWhitelisted() public {
@@ -153,7 +149,7 @@ contract MiningShareFactoryTest is Test {
 
         vm.prank(user1);
         usdt.approve(address(factory), pricePerShare);
-        factory.mint(1);
+        factory.mint(1, 1);
     }
 
     function testFailMintWhenAllSharesMinted() public {
@@ -163,9 +159,9 @@ contract MiningShareFactoryTest is Test {
 
         vm.startPrank(user1);
         usdt.approve(address(factory), pricePerShare * (totalShares + 1));
-        factory.mint(1);
-        factory.mint(1);
-        factory.mint(1); // This should fail
+        factory.mint(1, 1);
+        factory.mint(1, 1);
+        factory.mint(1, 1); // This should fail
         vm.stopPrank();
     }
 
@@ -173,7 +169,7 @@ contract MiningShareFactoryTest is Test {
         factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.prank(user1);
-        factory.batchMint(1, 0);
+        factory.mint(1, 0);
     }
 
 //    function testGetRoundIdFromShareId() public {
@@ -191,15 +187,14 @@ contract MiningShareFactoryTest is Test {
 //    }
 
     function testTokenURI() public {
-        factory.setBaseURI("https://example.com/metadata/");
         factory.createRound(0, 100, 100 * 10**usdt.decimals(), block.timestamp, block.timestamp + 1 days, block.timestamp + 12 hours, 30);
 
         vm.warp(block.timestamp + 13 hours);
         vm.startPrank(user1);
         usdt.approve(address(factory), 100 * 10**usdt.decimals());
-        factory.mint(1);
+        factory.mint(1, 1);
         vm.stopPrank();
 
-        assertEq(factory.tokenURI(1 << ROUND_ID_SHIFT | 0), "https://example.com/metadata/1");
+        assertEq(factory.uri(1), "https://example.com/metadata/1");
     }
 }

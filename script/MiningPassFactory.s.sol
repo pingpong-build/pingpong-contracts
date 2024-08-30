@@ -18,8 +18,8 @@ contract MiningPassFactoryScript is Script {
         vm.startBroadcast();
 
 //        FaucetToken tUSDT = new FaucetToken("tUSDT", "tUSDT");
-        MiningPassFactory msf = new MiningPassFactory(tUSDT, collector);
-        msf.createRound(0, 1000, 10 ether, 1724048635, 1724048635 + 7 * 24 * 3600, 1724048635 + 0 * 24 * 3600, 30);
+        MiningPassFactory mpf = new MiningPassFactory(tUSDT, collector, "");
+        mpf.createRound(0, 1000, 10 ether, 1724048635, 1724048635 + 7 * 24 * 3600, 1724048635 + 0 * 24 * 3600, 30);
 
         vm.stopBroadcast();
     }
@@ -30,7 +30,7 @@ contract MiningPassFactoryScript is Script {
         MiningPassFactory mpf = MiningPassFactory(mpfAddress);
         FaucetToken token = FaucetToken(tUSDT);
         token.approve(address(mpf), 1000 ether);
-        mpf.mint(1);
+        mpf.mint(1, 1);
 
         vm.stopBroadcast();
     }
@@ -44,18 +44,8 @@ contract MiningPassFactoryScript is Script {
         vm.stopBroadcast();
     }
 
-    function setBaseURI() public {
-        vm.startBroadcast();
-
-        MiningPassFactory mpf = MiningPassFactory(mpfAddress);
-        mpf.setBaseURI("https://resource.pingpong.build/static/future/");
-
-        vm.stopBroadcast();
-    }
-
     function print() public view {
         MiningPassFactory mpf = MiningPassFactory(mpfAddress);
-        console2.log(mpf.baseURI());
-        console2.log(mpf.tokenURI(1 << 128 | 0));
+        console2.log(mpf.uri(1));
     }
 }

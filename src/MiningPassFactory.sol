@@ -1,42 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
 /// @title MiningPassFactory
-/// @notice This contract manages the minting and management of mining revenue share NFTs
-/// @dev Inherits from Ownable and ERC721
-contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
+/// @notice This contract manages the minting and management of mining revenue pass NFTs
+/// @dev Inherits from Ownable and ERC1155
+contract MiningPassFactory is ERC1155, AccessControl, ReentrancyGuard {
     using Strings for uint256;
 
     /* ----------------------- Constants ------------------------ */
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    uint256 public constant ROUND_ID_SHIFT = 128;
-
     /* ----------------------- Storage ------------------------ */
 
     /// @notice Struct to store information about each revenue round
     struct Round {
         uint256 roundType;        // Type of the round
-        uint256 totalShares;      // Total number of shares available in this round
-        uint256 pricePerShare;    // Price per share in USDT
+        uint256 totalPasses;      // Total number of passes available in this round
+        uint256 pricePerPass;     // Price per pass in USDT
         uint256 startTime;        // Start time of the round
         uint256 endTime;          // End time of the round
         uint256 whitelistEndTime; // End time for whitelist minting
         mapping(address => bool) whitelist; // Whitelist of addresses
         mapping(address => uint256) discountList; // Discount list of addresses with their discount rates
-        uint256 mintedCount;      // Number of shares minted in this round
+        uint256 mintedCount;      // Number of passes minted in this round
         uint256 miningDays;       // The number of days for which this round's revenue is allocated
     }
-
-    /// @notice Base URI for computing tokenURI
-    string public baseURI;
 
     /// @notice USDT token contract address
     IERC20 public usdtToken;
@@ -53,17 +48,16 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
     /* ----------------------- Events ------------------------ */
 
     /// @notice Emitted when a new round is created
-    event RoundCreated(uint256 indexed roundId, uint256 roundType, uint256 startTime, uint256 endTime, uint256 totalShares, uint256 pricePerShare, uint256 miningDays);
+    event RoundCreated(uint256 indexed roundId, uint256 roundType, uint256 startTime, uint256 endTime, uint256 totalPasses, uint256 pricePerPass, uint256 miningDays);
 
-    /// @notice Emitted when a share is minted
-    event ShareMinted(uint256 indexed roundId, address indexed buyer, uint256 shareId);
+    /// @notice Emitted when a pass is minted
+    event PassMinted(uint256 indexed roundId, address indexed buyer, uint256 quantity);
 
     /// @notice Emitted when addresses are added to the whitelist for a round
     event WhitelistUpdated(uint256 indexed roundId, address[] addresses);
 
     /// @notice Emitted when discount list is updated for a round
     event DiscountListUpdated(uint256 indexed roundId, address[] addresses, uint256[] discountRates);
-
 
 
     /* ----------------------- Errors ------------------------ */
@@ -74,8 +68,8 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Error thrown when an invalid address is provided
     error InvalidAddress();
 
-    /// @notice Error thrown when trying to mint more shares than available
-    error InsufficientShares();
+    /// @notice Error thrown when trying to mint more passes than available
+    error InsufficientPasses();
 
     /// @notice Error thrown when minting is not active
     error MintingNotActive();
@@ -97,7 +91,7 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
     /// @notice Initializes the contract with USDT token address and revenue collector address
     /// @param _usdtToken Address of the USDT token contract
     /// @param _fundCollector Address to collect the revenue
-    constructor(address _usdtToken, address _fundCollector) ERC721("Multi-mining Pass", "PPMT") {
+    constructor(address _usdtToken, address _fundCollector, string memory _uri) ERC1155(_uri) {
         if (_usdtToken == address(0) || _fundCollector == address(0)) {
             revert InvalidAddress();
         }
@@ -112,16 +106,16 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
     /* ----------------------- Admin functions ------------------------ */
 
     /// @notice Create a new round
-    /// @param _totalShares Total number of shares for this round
-    /// @param _pricePerShare Price per share in USDT
+    /// @param _totalPasses Total number of passes for this round
+    /// @param _pricePerPass Price per pass in USDT
     /// @param _startTime Start time of the round
     /// @param _endTime End time of the round
     /// @param _whitelistEndTime End time for whitelist minting
     /// @param _miningDays The number of days for which this round's revenue is allocated
     function createRound(
         uint256 _roundType,
-        uint256 _totalShares,
-        uint256 _pricePerShare,
+        uint256 _totalPasses,
+        uint256 _pricePerPass,
         uint256 _startTime,
         uint256 _endTime,
         uint256 _whitelistEndTime,
@@ -144,12 +138,12 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
         newRound.roundType = _roundType;
         newRound.startTime = _startTime;
         newRound.endTime = _endTime;
-        newRound.totalShares = _totalShares;
-        newRound.pricePerShare = _pricePerShare;
+        newRound.totalPasses = _totalPasses;
+        newRound.pricePerPass = _pricePerPass;
         newRound.whitelistEndTime = _whitelistEndTime;
         newRound.miningDays = _miningDays;
 
-        emit RoundCreated(roundCount, _roundType, _startTime, _endTime, _totalShares, _pricePerShare, _miningDays);
+        emit RoundCreated(roundCount, _roundType, _startTime, _endTime, _totalPasses, _pricePerPass, _miningDays);
     }
 
     /// @notice Set the whitelist for a specific round
@@ -183,33 +177,17 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
         emit DiscountListUpdated(_roundId, _addresses, _discountRates);
     }
 
-    /// @notice Set the base URI for computing tokenURI
-    /// @param _baseURI The base URI
-    function setBaseURI(string memory _baseURI) external onlyRole(OPERATOR_ROLE) {
-        baseURI = _baseURI;
-    }
-
-    /// @notice Mint a share for a specific round
+    /// @notice Mint mining-pass for a specific round
     /// @param _roundId The ID of the round
-    function mint(uint256 _roundId) external nonReentrant {
-        _mintShares(_roundId, 1);
-    }
-
-    /// @notice Batch mint shares for a specific round
-    /// @param _roundId The ID of the round
-    /// @param _quantity The number of shares to mint
-    function batchMint(uint256 _roundId, uint256 _quantity) external nonReentrant {
-        _mintShares(_roundId, _quantity);
-    }
-
-    function _mintShares(uint256 _roundId, uint256 _quantity) internal {
+    /// @param _quantity The number of pass to mint
+    function mint(uint256 _roundId, uint256 _quantity) external nonReentrant {
         Round storage round = rounds[_roundId];
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert MintingNotActive();
         }
 
-        if (round.mintedCount + _quantity > round.totalShares) {
-            revert InsufficientShares();
+        if (round.mintedCount + _quantity > round.totalPasses) {
+            revert InsufficientPasses();
         }
 
         if (block.timestamp <= round.whitelistEndTime) {
@@ -219,40 +197,29 @@ contract MiningPassFactory is ERC721, AccessControl, ReentrancyGuard {
         }
 
         uint256 discountRate = round.discountList[msg.sender];
-        uint256 totalCost = round.pricePerShare * _quantity * (100 - discountRate) / 100;
+        uint256 totalCost = round.pricePerPass * _quantity * (100 - discountRate) / 100;
 
         bool success = usdtToken.transferFrom(msg.sender, fundCollector, totalCost);
         if (!success) {
             revert ERC20TransferFailed();
         }
 
-        for (uint256 i = 0; i < _quantity; i++) {
-            uint256 shareId = (_roundId << ROUND_ID_SHIFT) | (round.mintedCount + i);
-            _safeMint(msg.sender, shareId);
-            emit ShareMinted(_roundId, msg.sender, shareId);
-        }
-
+        _mint(msg.sender, _roundId, _quantity, "");
         round.mintedCount += _quantity;
+
+        emit PassMinted(_roundId, msg.sender, _quantity);
     }
 
     /* ----------------------- View functions ------------------------ */
 
-    /// @notice Get the round ID from a share ID
-    /// @param _shareId The ID of the share
-    /// @return The ID of the round
-    function getRoundIdFromShareId(uint256 _shareId) public pure returns (uint256) {
-        return _shareId >> ROUND_ID_SHIFT;
-    }
-
-    /// @notice Get token URI of share NFT
-    /// @param tokenId The share NFT token id
+    /// @notice Get token URI of mining-pass
+    /// @param _tokenId The pass NFT token id
     /// @return The token URI
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        uint256 roundId = getRoundIdFromShareId(tokenId);
-        return string.concat(baseURI, roundId.toString());
+    function uri(uint256 _tokenId) public view virtual override returns (string memory) {
+        return string(abi.encodePacked(super.uri(_tokenId), _tokenId.toString()));
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
