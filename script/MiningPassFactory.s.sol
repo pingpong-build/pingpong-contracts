@@ -6,20 +6,30 @@ import "../src/StakerVault.sol";
 import {MachinePassManager} from "../src/markets/MachinePassManager.sol";
 import {FaucetToken} from "../src/FaucetToken.sol";
 import {MiningPassFactory} from "../src/MiningPassFactory.sol";
+import {Constants} from "./constants.sol";
 
-contract MiningPassFactoryScript is Script {
-    address tUSDT = 0x78137Bb8588D1a8942E73C62881482b1dc650F40;
-    address collector = 0xBfE5E7792A91d6f91626d0F08c8052702c9b9c51;
-    address mpfAddress = 0xC11705DfC88141B01d79187d0C01CcF1c182Ddc5;
+contract MiningPassFactoryScript is Script, Constants {
+    uint256 chainId = uint256(vm.envUint("CHAIN_ID"));
+    address usdt;
+    address collector;
+    address mpfAddress = 0xC3f1823dC102d95E063e8d226331356086945236;
 
-    function setUp() public {}
+    function setUp() public {
+        console2.log("CHAIN_ID: ", chainId);
+        if (chainId == 137) {
+            usdt = Constants.polygonUsdt;
+            collector = Constants.polygonCollector;
+        } else {
+            usdt = Constants.amoyUsdt;
+            collector = Constants.amoyCollector;
+        }
+    }
 
     function run() public {
         vm.startBroadcast();
 
-//        FaucetToken tUSDT = new FaucetToken("tUSDT", "tUSDT");
-        MiningPassFactory mpf = new MiningPassFactory(tUSDT, collector, "");
-        mpf.createRound(0, 1000, 10 ether, 1724048635, 1724048635 + 7 * 24 * 3600, 1724048635 + 0 * 24 * 3600, 30);
+        MiningPassFactory mpf = new MiningPassFactory(usdt, collector, "https://resource.pingpong.build/static/future/");
+        mpf.createRound(0, 1000, 0.0001 * 1000_000, block.timestamp, block.timestamp + 7 * 24 * 3600, block.timestamp + 0 * 24 * 3600, 30);
 
         vm.stopBroadcast();
     }
@@ -28,9 +38,10 @@ contract MiningPassFactoryScript is Script {
         vm.startBroadcast();
 
         MiningPassFactory mpf = MiningPassFactory(mpfAddress);
-        FaucetToken token = FaucetToken(tUSDT);
-        token.approve(address(mpf), 1000 ether);
+        FaucetToken token = FaucetToken(usdt);
+        token.approve(mpfAddress, 10 * 1000_000);
         mpf.mint(1, 1);
+        mpf.mint(1, 2);
 
         vm.stopBroadcast();
     }

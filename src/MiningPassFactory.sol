@@ -219,6 +219,23 @@ contract MiningPassFactory is ERC1155, AccessControl, ReentrancyGuard {
         return string(abi.encodePacked(super.uri(_tokenId), _tokenId.toString()));
     }
 
+    /// @notice Check if an address is whitelisted for a specific round
+    /// @param _roundId The ID of the round
+    /// @param _address The address to check
+    /// @return bool True if the address is whitelisted, false otherwise
+    function isWhitelisted(uint256 _roundId, address _address) public view returns (bool) {
+        return rounds[_roundId].whitelist[_address];
+    }
+
+    /// @notice Get the discount rate for an address in a specific round
+    /// @param _roundId The ID of the round
+    /// @param _address The address to check
+    /// @return uint256 The discount rate (0-100, where 0 means no discount and 100 means 100% discount)
+    function getDiscountRate(uint256 _roundId, address _address) public view returns (uint256) {
+        return rounds[_roundId].discountList[_address];
+    }
+
+
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }

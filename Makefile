@@ -32,12 +32,7 @@ grant-mining-share:
 market-prepare:
 	forge script script/MachineMarket.s.sol:MachineMarketScript  --sig "prepare()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
 
-<<<<<<< Updated upstream
-build:
-	forge build
-=======
-invoke-msf-%:
-	$(eval CMD := $(subst invoke-msf-,,$@))
+invoke-mpf-%:
+	$(eval CMD := $(subst invoke-mpf-,,$@))
 	@echo "Invoke msf $(CMD) function"
-	forge script script/MiningShareFactory.s.sol:MiningShareFactoryScript --sig "$(CMD)()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy
->>>>>>> Stashed changes
+	forge script script/MiningPassFactory.s.sol:MiningPassFactoryScript --sig "$(CMD)()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}

@@ -1,0 +1,59 @@
+{
+  "transactions": [
+    {
+      "hash": "0xbcbe541f380fabcc1b31bae6929f573e8fda174262b18dbf156881c177e410c0",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+      "function": "approve(address,uint256)",
+      "arguments": [
+        "0x3255aca301b6c4D808103aB5ad243BeBDF1f419e",
+        "10000000"
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0xbfe5e7792a91d6f91626d0f08c8052702c9b9c51",
+        "to": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+        "gas": "0x11712",
+        "value": "0x0",
+        "data": "0x095ea7b30000000000000000000000003255aca301b6c4d808103ab5ad243bebdf1f419e0000000000000000000000000000000000000000000000000000000000989680",
+        "nonce": "0x5"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    },
+    {
+      "hash": "0xb20c2cbd013bfcb4a55f5fe15b55c56777cd36df92cc39b21978e5ae874aae88",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0x3255aca301b6c4D808103aB5ad243BeBDF1f419e",
+      "function": "mint(uint256,uint256)",
+      "arguments": [
+        "1",
+        "1"
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0xbfe5e7792a91d6f91626d0f08c8052702c9b9c51",
+        "to": "0x3255aca301b6c4d808103ab5ad243bebdf1f419e",
+        "gas": "0x28658",
+        "value": "0x0",
+        "data": "0x1b2ef1ca00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001",
+        "nonce": "0x6"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0xbcbe541f380fabcc1b31bae6929f573e8fda174262b18dbf156881c177e410c0",
+    "0xb20c2cbd013bfcb4a55f5fe15b55c56777cd36df92cc39b21978e5ae874aae88"
+  ],
+  "returns": {},
+  "timestamp": 1725270017,
+  "chain": 137,
+  "multi": false,
+  "commit": "18fa437"
+}
