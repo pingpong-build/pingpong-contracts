@@ -1,0 +1,36 @@
+{
+  "transactions": [
+    {
+      "hash": "0x17a8a207a4f3463e5d50c2c55cfa160fc6368e6328a7216f52a303c493fef8a2",
+      "transactionType": "CALL",
+      "contractName": "MiningPassFactory",
+      "contractAddress": "0x793C94C1e45f9Bb5801E08898Ff16743a8561BcD",
+      "function": "grantRole(bytes32,address)",
+      "arguments": [
+        "0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929",
+        "0xB90C7395D52e8af26773EB89250DbEaAAc107c01"
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0x3212dbfca59b74f5ed208b64f171a0c8bcf2e8c0",
+        "to": "0x793c94c1e45f9bb5801e08898ff16743a8561bcd",
+        "gas": "0x12633",
+        "value": "0x0",
+        "data": "0x2f2ff15d97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929000000000000000000000000b90c7395d52e8af26773eb89250dbeaaac107c01",
+        "nonce": "0x2"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0x17a8a207a4f3463e5d50c2c55cfa160fc6368e6328a7216f52a303c493fef8a2"
+  ],
+  "returns": {},
+  "timestamp": 1725510636,
+  "chain": 137,
+  "multi": false,
+  "commit": "d158120"
+}

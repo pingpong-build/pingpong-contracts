@@ -1,0 +1,59 @@
+{
+  "transactions": [
+    {
+      "hash": "0x8c64df2d0e8e3e20ea172b7bb03c36a2119c63c18712b2f1e847092178880098",
+      "transactionType": "CALL",
+      "contractName": "MiningPassFactory",
+      "contractAddress": "0x793C94C1e45f9Bb5801E08898Ff16743a8561BcD",
+      "function": "revokeRole(bytes32,address)",
+      "arguments": [
+        "0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929",
+        "0x3212dBfCA59b74F5eD208b64f171a0C8BcF2e8C0"
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0x3212dbfca59b74f5ed208b64f171a0c8bcf2e8c0",
+        "to": "0x793c94c1e45f9bb5801e08898ff16743a8561bcd",
+        "gas": "0xa8fa",
+        "value": "0x0",
+        "data": "0xd547741f97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b9290000000000000000000000003212dbfca59b74f5ed208b64f171a0c8bcf2e8c0",
+        "nonce": "0x4"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    },
+    {
+      "hash": "0x1ceb066d5dfa24244cecfaeb206bd956492f9208fa4665216ec3d157a540d122",
+      "transactionType": "CALL",
+      "contractName": "MiningPassFactory",
+      "contractAddress": "0x793C94C1e45f9Bb5801E08898Ff16743a8561BcD",
+      "function": "revokeRole(bytes32,address)",
+      "arguments": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x3212dBfCA59b74F5eD208b64f171a0C8BcF2e8C0"
+      ],
+      "transaction": {
+        "type": "0x00",
+        "from": "0x3212dbfca59b74f5ed208b64f171a0c8bcf2e8c0",
+        "to": "0x793c94c1e45f9bb5801e08898ff16743a8561bcd",
+        "gas": "0x9b5c",
+        "value": "0x0",
+        "data": "0xd547741f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000003212dbfca59b74f5ed208b64f171a0c8bcf2e8c0",
+        "nonce": "0x5"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0x8c64df2d0e8e3e20ea172b7bb03c36a2119c63c18712b2f1e847092178880098",
+    "0x1ceb066d5dfa24244cecfaeb206bd956492f9208fa4665216ec3d157a540d122"
+  ],
+  "returns": {},
+  "timestamp": 1725511133,
+  "chain": 137,
+  "multi": false,
+  "commit": "d158120"
+}
