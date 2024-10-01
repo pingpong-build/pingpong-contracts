@@ -12,7 +12,7 @@ contract MiningPassFactoryScript is Script, Constants {
     uint256 chainId = uint256(vm.envUint("CHAIN_ID"));
     address usdt;
     address collector;
-    address mpfAddress = 0x793C94C1e45f9Bb5801E08898Ff16743a8561BcD;
+    address mpfAddress = 0xC3f1823dC102d95E063e8d226331356086945236;
 
     function setUp() public {
         console2.log("CHAIN_ID: ", chainId);
@@ -39,9 +39,8 @@ contract MiningPassFactoryScript is Script, Constants {
 
         MiningPassFactory mpf = MiningPassFactory(mpfAddress);
         FaucetToken token = FaucetToken(usdt);
-        token.approve(mpfAddress, 10 * 1000_000);
-        mpf.mint(1, 1);
-        mpf.mint(1, 2);
+//        token.approve(mpfAddress, 10 * 1000_000);
+        mpf.mint(1, 10);
 
         vm.stopBroadcast();
     }
