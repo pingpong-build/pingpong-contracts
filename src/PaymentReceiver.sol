@@ -38,7 +38,7 @@ contract PaymentReceiver is Ownable, ReentrancyGuard {
 
     /// @notice Initializes the contract with the payment receiver address
     /// @param _receiver Address to receive the payments
-    constructor(address _receiver) {
+    constructor(address _receiver) Ownable(msg.sender) {
         if (_receiver == address(0)) {
             revert InvalidAddress();
         }
