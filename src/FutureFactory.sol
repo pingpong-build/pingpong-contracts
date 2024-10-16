@@ -40,7 +40,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         uint256 startTime;                 // The start time of the future
         uint256 startDeliveryTime;         // The start time for delivery
         uint256 endTime;                   // The end time of the future
-        address creator;                   // The creator of the future
+        address owner;                   // The owner of the future
     }
 
     /// @notice Struct to store information about each future
@@ -49,6 +49,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         uint256 totalClaimed;                // The total claimed revenue
         bool hasDeposit;                   // Indicates whether the security deposit has been paid
         uint256 mintedCount;               // The number of NFTs minted so far
+        uint256 feeRate;                  // The fee rate for the platform
     }
 
     /// @notice Mapping of future ID to Future struct
@@ -62,7 +63,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
 
     event FutureCreate(uint256 indexed futureId, address deliverable, uint256 deliverableQuantity, 
         uint256 totalSupply, address payToken, uint256 price, uint256 securityDepositRate, uint256 securityDeposit,
-        uint256 startTime, uint256 startDeliveryTime, uint256 endTime, address creator);
+        uint256 startTime, uint256 startDeliveryTime, uint256 endTime, address owner, uint256 feeRate);
 
     event FutureDeposited(uint256 indexed futureId);
 
@@ -122,6 +123,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         }
 
         fundCollector = _fundCollector;
+        feeRate = 1; // default fee rate is 1%
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(OPERATOR_ROLE, msg.sender);
@@ -151,7 +153,8 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         uint256 _securityDeposit,
         uint256 _startTime,
         uint256 _startDeliveryTime,
-        uint256 _endTime
+        uint256 _endTime,
+        address _owner
     ) external {
         if (_startTime < block.timestamp || _endTime <= _startTime || 
             _startDeliveryTime <= _startTime || _startDeliveryTime >= _endTime) {
@@ -180,15 +183,16 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         newFutureMeta.startTime = _startTime;
         newFutureMeta.startDeliveryTime = _startDeliveryTime;
         newFutureMeta.endTime = _endTime;
-        newFutureMeta.creator = msg.sender;
+        newFutureMeta.owner = _owner;
         
         newFutureState.totalDelivered = 0;
         newFutureState.totalClaimed = 0;
         newFutureState.hasDeposit = false;
         newFutureState.mintedCount = 0;
+        newFutureState.feeRate = feeRate;
 
         emit FutureCreate(futureCount, _deliverable, _deliverableQuantity, _totalSupply, _payToken, _price,
-            _securityDepositRate, _securityDeposit, _startTime, _startDeliveryTime, _endTime, msg.sender); 
+            _securityDepositRate, _securityDeposit, _startTime, _startDeliveryTime, _endTime, _owner, feeRate); 
     }
 
     /// @notice Deposit the security deposit for a future
@@ -275,16 +279,20 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     function deliverClaim(uint256 _futureId) external nonReentrant {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
-        if (msg.sender != futureMeta.creator) {
+        if (msg.sender != futureMeta.owner) {
             revert InvalidAddress();
         }
 
         uint256 totalCanClaim = futureMeta.price * futureState.totalDelivered / futureMeta.deliverableQuantity;
+        uint256 totalMintedValt = futureMeta.price * futureState.mintedCount;
+        if (totalCanClaim > totalMintedValt) {
+            totalCanClaim = totalMintedValt;
+        }
         if (totalCanClaim < futureState.totalClaimed) {
             revert InvalidFutureClaim();
         }
         uint256 canClaim = totalCanClaim - futureState.totalClaimed;
-        uint256 fee = feeRate * canClaim / 100;
+        uint256 fee = futureState.feeRate * canClaim / 100;
         uint256 realCanClaim = canClaim - fee;
 
         if (futureMeta.payToken == address(0)) {
@@ -365,7 +373,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         if (futureState.hasDeposit == false) {
             revert DepositNotPaid();
         }
-        if (msg.sender != futureMeta.creator) {
+        if (msg.sender != futureMeta.owner) {
             revert InvalidAddress();
         }
 
