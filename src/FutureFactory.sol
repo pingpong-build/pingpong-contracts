@@ -35,49 +35,60 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         uint256 totalSupply;               // The total supply of future NFTs
         address payToken;                  // The type of payment token (used for margin and purchasing the future)
         uint256 price;                     // The price of the future NFT, denominated in payToken
-        uint256 securityDepositRate;       // The security deposit rate, ranging from 0 to 100
         uint256 securityDeposit;           // The security deposit amount, denominated in payToken
         uint256 startTime;                 // The start time of the future
         uint256 startDeliveryTime;         // The start time for delivery
         uint256 endTime;                   // The end time of the future
-        address owner;                   // The owner of the future
+        address owner;                     // The owner of the future
+        uint256 feeRate;                   // The fee rate for the platform
     }
 
     /// @notice Struct to store information about each future
     struct FutureState {
         uint256 totalDelivered;            // The total quantity delivered so far
-        uint256 totalClaimed;                // The total claimed revenue
+        uint256 totalClaimed;              // The total claimed revenue
         bool hasDeposit;                   // Indicates whether the security deposit has been paid
         uint256 mintedCount;               // The number of NFTs minted so far
-        uint256 feeRate;                  // The fee rate for the platform
     }
 
     /// @notice Mapping of future ID to Future struct
     mapping(uint256 => FutureState) public futureStates;
 
+    /// @notice Mapping of future ID to FutureMeta struct
     mapping(uint256 => FutureMeta) public futureMetas;
 
     /* ----------------------- Events ------------------------ */
 
+    /// @notice Event emitted when the fee rate is updated
     event FeeRateUpdated(uint256 feeRate);
 
+    /// @notice Event emitted when a future is created
     event FutureCreate(uint256 indexed futureId, address deliverable, uint256 deliverableQuantity, 
-        uint256 totalSupply, address payToken, uint256 price, uint256 securityDepositRate, uint256 securityDeposit,
+        uint256 totalSupply, address payToken, uint256 price, uint256 securityDeposit,
         uint256 startTime, uint256 startDeliveryTime, uint256 endTime, address owner, uint256 feeRate);
 
+    /// @notice Event emitted when a future is deposited
     event FutureDeposited(uint256 indexed futureId);
 
+    /// @notice Event emitted when a future is minted
     event FutureMint(uint256 indexed futureId, address buyer, uint256 quantity);
 
+    /// @notice Event emitted when a future is delivered
     event FutureDelivered(uint256 indexed futureId, uint256 quantity);
 
+    /// @notice Event emitted when a future delivery is claimed
     event FutureDeliveryClaimed(uint256 indexed futureId, address seller, uint256 quantity, uint256 fee);
 
-    event FutureClaimed(uint256 indexed futureId, address buyer, uint256 quantity);
+    /// @notice Event emitted when a future is claimed
+    event FutureClaimed(uint256 indexed futureId, address buyer, uint256 quantity, uint256 claimDeliverable, uint256 securityDeposit, uint256 revertCost);
 
+    /// @notice Event emitted when a future is refunded
     event FutureRefunded(uint256 indexed futureId);
 
     /* ----------------------- Errors ------------------------ */
+
+    /// @notice Error thrown when the fee rate is invalid
+    error InvalidFeeRate();
 
     /// @notice Error thrown when an invalid address is provided
     error InvalidAddress();
@@ -93,9 +104,6 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
 
     /// @notice Error thrown when the future time is invalid
     error InvalidFutureTime();
-
-    /// @notice Error thrown when the future security deposit is invalid
-    error InvalidFutureSecurityDeposit();
 
     /// @notice Error thrown when the deposit is not paid
     error DepositNotPaid();
@@ -134,7 +142,12 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
 
     /* ----------------------- Admin Functions ------------------------ */
 
+    /// @notice Set the fee rate for the platform
+    /// @param _feeRate The fee rate for the platform
     function setFeeRate(uint256 _feeRate) external onlyRole(OPERATOR_ROLE) {
+        if (_feeRate > 100) {
+            revert InvalidFeeRate();
+        }
         feeRate = _feeRate;
 
         emit FeeRateUpdated(_feeRate);
@@ -146,13 +159,19 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     /// @param _deliverable The address of the deliverable ERC20 token
     /// @param _deliverableQuantity The quantity of deliverable per NFT
     /// @param _totalSupply The total supply of future NFTs
+    /// @param _payToken The address of payment token
+    /// @param _price The price of the future NFT, denominated in payToken
+    /// @param _securityDeposit The security deposit amount, denominated in payToken
+    /// @param _startTime The start time of the future
+    /// @param _startDeliveryTime The start time for delivery
+    /// @param _endTime The end time of the future
+    /// @param _owner The owner of the future
     function createFuture(
         address _deliverable,
         uint256 _deliverableQuantity,
         uint256 _totalSupply,
         address _payToken,
         uint256 _price,
-        uint256 _securityDepositRate,
         uint256 _securityDeposit,
         uint256 _startTime,
         uint256 _startDeliveryTime,
@@ -168,10 +187,6 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
             revert InvalidToken();
         }
 
-        if (_securityDepositRate < 0 || _securityDepositRate > 100 || _securityDeposit < 0) {
-            revert InvalidFutureSecurityDeposit();
-        }
-
         futureCount++;
         FutureState storage newFutureState = futureStates[futureCount];
         FutureMeta storage newFutureMeta = futureMetas[futureCount];
@@ -181,24 +196,24 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         newFutureMeta.totalSupply = _totalSupply;
         newFutureMeta.payToken = _payToken;
         newFutureMeta.price = _price;
-        newFutureMeta.securityDepositRate = _securityDepositRate;
         newFutureMeta.securityDeposit = _securityDeposit;
         newFutureMeta.startTime = _startTime;
         newFutureMeta.startDeliveryTime = _startDeliveryTime;
         newFutureMeta.endTime = _endTime;
         newFutureMeta.owner = _owner;
+        newFutureMeta.feeRate = feeRate;
         
         newFutureState.totalDelivered = 0;
         newFutureState.totalClaimed = 0;
         newFutureState.hasDeposit = false;
         newFutureState.mintedCount = 0;
-        newFutureState.feeRate = feeRate;
 
         emit FutureCreate(futureCount, _deliverable, _deliverableQuantity, _totalSupply, _payToken, _price,
-            _securityDepositRate, _securityDeposit, _startTime, _startDeliveryTime, _endTime, _owner, feeRate); 
+            _securityDeposit, _startTime, _startDeliveryTime, _endTime, _owner, feeRate); 
     }
 
     /// @notice Deposit the security deposit for a future
+    /// @param _futureId The ID of the future
     function deposit(uint256 _futureId) external payable {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
@@ -228,6 +243,8 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Mint future NFTs
+    /// @param _futureId The ID of the future
+    /// @param _quantity The quantity of future NFTs to mint
     function mint(uint256 _futureId, uint256 _quantity) external payable nonReentrant {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
@@ -263,6 +280,8 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Submit deliverables, and pay fee, can submit multiple times
+    /// @param _futureId The ID of the future
+    /// @param _quantity The quantity of deliverables to submit
     function deliver(uint256 _futureId, uint256 _quantity) external {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
@@ -279,6 +298,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Deliver claim, can deliver multiple times
+    /// @param _futureId The ID of the future
     function deliverClaim(uint256 _futureId) external nonReentrant {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
@@ -295,7 +315,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
             revert InvalidFutureClaim();
         }
         uint256 canClaim = totalCanClaim - futureState.totalClaimed;
-        uint256 fee = futureState.feeRate * canClaim / 100;
+        uint256 fee = futureMeta.feeRate * canClaim / 100;
         uint256 realCanClaim = canClaim - fee;
 
         if (futureMeta.payToken == address(0)) {
@@ -323,6 +343,8 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Claim future, can claim multiple times
+    /// @param _futureId The ID of the future
+    /// @param _claimCount The quantity of future NFTs to claim
     function claim(uint256 _futureId, uint256 _claimCount) external nonReentrant {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState memory futureState = futureStates[_futureId];
@@ -336,22 +358,21 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         }
 
         uint256 totalNeedDelivered = futureMeta.deliverableQuantity * futureState.mintedCount;
+        uint256 claimDeliverable = 0;
+        uint256 securityDeposit = 0;
+        uint256 revertCost = 0;
         if (futureState.totalDelivered < totalNeedDelivered) {
-            uint256 deliveryRate = futureMeta.deliverableQuantity * 100 / totalNeedDelivered;
-            uint256 claimValt = _claimCount * futureMeta.deliverableQuantity * deliveryRate / 100;
-            bool deliverTransfer = IERC20(futureMeta.deliverable).transfer(msg.sender, claimValt);
-            if (!deliverTransfer) {
-                revert ERC20TransferFailed();
-            }
+            uint256 deliveryRate = futureState.totalDelivered * 100 / totalNeedDelivered;
+            claimDeliverable = _claimCount * futureMeta.deliverableQuantity * deliveryRate / 100;
 
-            uint256 securityDeposit = _claimCount * futureMeta.securityDeposit / futureMeta.totalSupply;
-            uint256 totalCost = _claimCount * futureMeta.price * (100 - deliveryRate) / 100;
+            securityDeposit = _claimCount * futureMeta.securityDeposit / futureMeta.totalSupply;
+            revertCost = _claimCount * futureMeta.price * (100 - deliveryRate) / 100;
             if (futureMeta.payToken == address(0)) {
                 (bool securityTransfer, ) = msg.sender.call{value: securityDeposit}("");
                 if (!securityTransfer) {
                     revert TransferFailed();
                 }
-                (bool costTransfer, ) = msg.sender.call{value: totalCost}("");
+                (bool costTransfer, ) = msg.sender.call{value: revertCost}("");
                 if (!costTransfer) {
                     revert TransferFailed();
                 }
@@ -360,25 +381,26 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
                 if (!securityTransfer) {
                     revert ERC20TransferFailed();
                 }
-                bool costTransfer = IERC20(futureMeta.payToken).transfer(msg.sender, totalCost);
+                bool costTransfer = IERC20(futureMeta.payToken).transfer(msg.sender, revertCost);
                 if (!costTransfer) {
                     revert ERC20TransferFailed();
                 }
             }
         } else {
-            uint256 claimDeliverable = _claimCount * futureMeta.deliverableQuantity;
-            bool deliverTransfer = IERC20(futureMeta.deliverable).transfer(msg.sender, claimDeliverable);
-            if (!deliverTransfer) {
-                revert ERC20TransferFailed();
-            }
+            claimDeliverable = _claimCount * futureMeta.deliverableQuantity;
+        }
+        bool deliverTransfer = IERC20(futureMeta.deliverable).transfer(msg.sender, claimDeliverable);
+        if (!deliverTransfer) {
+            revert ERC20TransferFailed();
         }
 
         _burn(msg.sender, _futureId, _claimCount);
 
-        emit FutureClaimed(_futureId, msg.sender, _claimCount);
+        emit FutureClaimed(_futureId, msg.sender, _claimCount, claimDeliverable, securityDeposit, revertCost);
     }
 
     /// @notice Refund future
+    /// @param _futureId The ID of the future
     function refund(uint256 _futureId) external nonReentrant {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState storage futureState = futureStates[_futureId];
@@ -428,6 +450,7 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     /* ----------------------- View functions ------------------------ */
 
     /// @notice Check if the future is delivered completely
+    /// @param _futureId The ID of the future
     function confirmDelivery(uint256 _futureId) public view returns (bool) {
         FutureMeta memory futureMeta = futureMetas[_futureId];
         FutureState memory futureState = futureStates[_futureId];

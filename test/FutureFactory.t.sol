@@ -44,7 +44,7 @@ contract FutureFactoryTest is Test {
 
     function testCreateFuture() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -55,36 +55,34 @@ contract FutureFactoryTest is Test {
             uint256 _totalSupply,
             address _payToken,
             uint256 _price,
-            uint256 _securityDepositRate,
             uint256 _securityDeposit,
             uint256 _startTime,
             uint256 _startDeliveryTime,
             uint256 _endTime,
-            address _owner) = factory.futureMetas(1);
+            address _owner,
+            uint256 _feeRate) = factory.futureMetas(1);
         console2.log("Future ID: %d", _futureId);
         console2.log("Deliverable: %s", _deliverable);
         console2.log("Deliverable Quantity: %d", _deliverableQuantity);
         console2.log("Total Supply: %d", _totalSupply);
         console2.log("Pay Token: %s", _payToken);
         console2.log("Price: %d", _price);
-        console2.log("Security Deposit Rate: %d", _securityDepositRate);
         console2.log("Security Deposit: %d", _securityDeposit);
         console2.log("Start Time: %d", _startTime);
         console2.log("Start Delivery Time: %d", _startDeliveryTime);
         console2.log("End Time: %d", _endTime);
         console2.log("Owner: %s", _owner);
+        console2.log("Fee Rate: %d", _feeRate);
         
         (uint256 _totalDelivered,
             uint256 _totalClaimed,
             bool _hasDeposit,
-            uint256 _mintedCount,
-            uint256 _feeRate) = factory.futureStates(1);
+            uint256 _mintedCount) = factory.futureStates(1);
         
         console2.log("Total Delivered: %d", _totalDelivered);
         console2.log("Total Claimed: %d", _totalClaimed);
         console2.log("Has Deposit: %s", _hasDeposit);
         console2.log("Minted Count: %d", _mintedCount);
-        console2.log("Fee Rate: %d", _feeRate);
 
         assertEq(_feeRate, 1);
     }
@@ -92,7 +90,7 @@ contract FutureFactoryTest is Test {
     function testFutureDeposit() public {
         uint256 beforeUsdt = usdt.balanceOf(address(this));
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -103,13 +101,11 @@ contract FutureFactoryTest is Test {
         (uint256 _totalDelivered,
             uint256 _totalClaimed,
             bool _hasDeposit,
-            uint256 _mintedCount,
-            uint256 _feeRate) = factory.futureStates(1);
+            uint256 _mintedCount) = factory.futureStates(1);
         assertEq(_totalDelivered, 0);
         assertEq(_totalClaimed, 0);
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 0);
-        assertEq(_feeRate, 1);
 
         uint256 usdtBalance = usdt.balanceOf(address(this));
         assertEq(usdtBalance, beforeUsdt - 9990 * 10**usdt.decimals());
@@ -126,7 +122,7 @@ contract FutureFactoryTest is Test {
 
     function testMintFuture() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -152,7 +148,7 @@ contract FutureFactoryTest is Test {
 
     function testDeliver() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -178,18 +174,16 @@ contract FutureFactoryTest is Test {
         (uint256 _totalDelivered,
             uint256 _totalClaimed,
             bool _hasDeposit,
-            uint256 _mintedCount,
-            uint256 _feeRate) = factory.futureStates(1);
+            uint256 _mintedCount) = factory.futureStates(1);
         assertEq(_totalDelivered, 10000 * 10**deliverable.decimals());
         assertEq(_totalClaimed, 0);
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 1);
-        assertEq(_feeRate, 1);
     }
 
     function testDeliverClaim() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -215,16 +209,15 @@ contract FutureFactoryTest is Test {
         uint256 beforeUsdt = usdt.balanceOf(address(owner));
         uint256 beforeUsdtFactory = usdt.balanceOf(address(factory));
         factory.deliverClaim(1);
+        (,,,,,,,,,,,uint256 _feeRate) = factory.futureMetas(1);
         (uint256 _totalDelivered,
             uint256 _totalClaimed,
             bool _hasDeposit,
-            uint256 _mintedCount,
-            uint256 _feeRate) = factory.futureStates(1);
+            uint256 _mintedCount) = factory.futureStates(1);
         assertEq(_totalDelivered, 10000 * 10**deliverable.decimals());
         assertEq(_totalClaimed, 99 * 10**usdt.decimals());
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 1);
-        assertEq(_feeRate, 1);
         uint256 afterUsdt = usdt.balanceOf(address(owner));
         uint256 afterUsdtFactory = usdt.balanceOf(address(factory));
         uint256 realClaimed = 99 * 10**deliverable.decimals() * (100 - _feeRate) / 100;
@@ -237,7 +230,7 @@ contract FutureFactoryTest is Test {
 
     function testClaim() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
@@ -275,7 +268,7 @@ contract FutureFactoryTest is Test {
 
     function testRefund() public {
         factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
-            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            99 * 10**usdt.decimals(), 9990 * 10**usdt.decimals(),
             block.timestamp + 1 seconds, 
             block.timestamp + 1 hours,
             block.timestamp + 2 hours,
