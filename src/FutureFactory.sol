@@ -85,6 +85,9 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
     /// @notice Error thrown when ERC20 transfer fails
     error ERC20TransferFailed();
 
+    /// @notice Error thrown when the transfer fails
+    error TransferFailed();
+
     /// @notice Error thrown when the token is invalid
     error InvalidToken();
 
@@ -296,8 +299,14 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         uint256 realCanClaim = canClaim - fee;
 
         if (futureMeta.payToken == address(0)) {
-            payable(msg.sender).transfer(realCanClaim);
-            payable(fundCollector).transfer(fee);
+            (bool successClaim, ) = msg.sender.call{value: realCanClaim}("");
+            if (!successClaim) {
+                revert TransferFailed();
+            }
+            (bool successFee, ) = fundCollector.call{value: fee}("");
+            if (!successFee) {
+                revert TransferFailed();
+            }
         } else {
             bool successClaim = IERC20(futureMeta.payToken).transfer(msg.sender, realCanClaim);
             if (!successClaim) {
@@ -338,8 +347,14 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
             uint256 securityDeposit = _claimCount * futureMeta.securityDeposit / futureMeta.totalSupply;
             uint256 totalCost = _claimCount * futureMeta.price * (100 - deliveryRate) / 100;
             if (futureMeta.payToken == address(0)) {
-                payable(msg.sender).transfer(securityDeposit);
-                payable(msg.sender).transfer(totalCost);
+                (bool securityTransfer, ) = msg.sender.call{value: securityDeposit}("");
+                if (!securityTransfer) {
+                    revert TransferFailed();
+                }
+                (bool costTransfer, ) = msg.sender.call{value: totalCost}("");
+                if (!costTransfer) {
+                    revert TransferFailed();
+                }
             } else {
                 bool securityTransfer = IERC20(futureMeta.payToken).transfer(msg.sender, securityDeposit);
                 if (!securityTransfer) {
@@ -387,7 +402,10 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         }
 
         if (futureMeta.payToken == address(0)) {
-            payable(msg.sender).transfer(returnSecurityDeposit);
+            (bool securityTransfer, ) = msg.sender.call{value: returnSecurityDeposit}("");
+            if (!securityTransfer) {
+                revert TransferFailed();
+            }
         } else {
             bool securityTransfer = IERC20(futureMeta.payToken).transfer(msg.sender, returnSecurityDeposit);
             if (!securityTransfer) {

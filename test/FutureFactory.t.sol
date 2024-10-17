@@ -109,6 +109,7 @@ contract FutureFactoryTest is Test {
         assertEq(_totalClaimed, 0);
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 0);
+        assertEq(_feeRate, 1);
 
         uint256 usdtBalance = usdt.balanceOf(address(this));
         assertEq(usdtBalance, beforeUsdt - 9990 * 10**usdt.decimals());
@@ -183,6 +184,7 @@ contract FutureFactoryTest is Test {
         assertEq(_totalClaimed, 0);
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 1);
+        assertEq(_feeRate, 1);
     }
 
     function testDeliverClaim() public {
@@ -222,13 +224,83 @@ contract FutureFactoryTest is Test {
         assertEq(_totalClaimed, 99 * 10**usdt.decimals());
         assertTrue(_hasDeposit);
         assertEq(_mintedCount, 1);
+        assertEq(_feeRate, 1);
         uint256 afterUsdt = usdt.balanceOf(address(owner));
         uint256 afterUsdtFactory = usdt.balanceOf(address(factory));
-        uint256 realClaimed = 99 * 10**deliverable.decimals() * (100 - factory.feeRate()) / 100;
+        uint256 realClaimed = 99 * 10**deliverable.decimals() * (100 - _feeRate) / 100;
         assertEq(afterUsdt, beforeUsdt + realClaimed);
         assertEq(afterUsdtFactory, beforeUsdtFactory - 99 * 10**deliverable.decimals());
         uint256 receiveFee = usdt.balanceOf(fundCollector);
         assertEq(receiveFee, 99 * 10**deliverable.decimals() - realClaimed);
         vm.stopPrank();
+    }
+
+    function testClaim() public {
+        factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
+            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            block.timestamp + 1 seconds, 
+            block.timestamp + 1 hours,
+            block.timestamp + 2 hours,
+            owner);
+        // approve to factory
+        usdt.approve(address(factory), 10000 * 10**usdt.decimals());
+        factory.deposit(1);
+
+        // mint
+        vm.startPrank(user1);
+        vm.warp(block.timestamp + 1 minutes);
+        usdt.approve(address(factory), 10000 * 10**usdt.decimals());
+        factory.mint(1, 1);
+        vm.stopPrank();
+
+        // deliver
+        vm.startPrank(owner);
+        vm.warp(block.timestamp + 1 hours);
+        deliverable.approve(address(factory), 10000 * 10**deliverable.decimals());
+        factory.deliver(1, 10000 * 10**deliverable.decimals());
+        
+        // deliver claim
+        factory.deliverClaim(1);
+
+        // claim
+        vm.startPrank(user1);
+        vm.warp(block.timestamp + 3 hours);
+        factory.claim(1, 1);
+        uint256 user1NftCount = factory.balanceOf(user1, 1);
+        assertEq(user1NftCount, 0);
+        uint256 user1DeliverableBalance = deliverable.balanceOf(user1);
+        assertEq(user1DeliverableBalance, 1000 * 10**deliverable.decimals());
+        vm.stopPrank();
+    }
+
+    function testRefund() public {
+        factory.createFuture(address(deliverable), 1000 * 10**deliverable.decimals(), 100, address(usdt), 
+            99 * 10**usdt.decimals(), 30, 9990 * 10**usdt.decimals(),
+            block.timestamp + 1 seconds, 
+            block.timestamp + 1 hours,
+            block.timestamp + 2 hours,
+            owner);
+        // approve to factory
+        usdt.approve(address(factory), 10000 * 10**usdt.decimals());
+        factory.deposit(1);
+
+        // mint
+        vm.startPrank(user1);
+        vm.warp(block.timestamp + 1 minutes);
+        usdt.approve(address(factory), 10000 * 10**usdt.decimals());
+        factory.mint(1, 1);
+        vm.stopPrank();
+
+        // deliver
+        vm.warp(block.timestamp + 1 hours);
+        deliverable.approve(address(factory), 10000 * 10**deliverable.decimals());
+        factory.deliver(1, 10000 * 10**deliverable.decimals());
+
+        // refund
+        uint256 beforeUsdt = usdt.balanceOf(address(this));
+        vm.warp(block.timestamp + 3 hours);
+        factory.refund(1);
+        uint256 afterUsdt = usdt.balanceOf(address(this));
+        assertEq(afterUsdt, beforeUsdt + 9990 * 10**usdt.decimals());
     }
 }
