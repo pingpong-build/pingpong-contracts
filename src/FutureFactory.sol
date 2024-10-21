@@ -134,17 +134,18 @@ contract FutureFactory is ERC1155, AccessControl, ReentrancyGuard {
         }
 
         fundCollector = _fundCollector;
-        feeRate = 1; // default fee rate is 1%
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(OPERATOR_ROLE, msg.sender);
+        
+        setFeeRate(1); // default fee rate is 1%
     }
 
     /* ----------------------- Admin Functions ------------------------ */
 
     /// @notice Set the fee rate for the platform
     /// @param _feeRate The fee rate for the platform
-    function setFeeRate(uint256 _feeRate) external onlyRole(OPERATOR_ROLE) {
+    function setFeeRate(uint256 _feeRate) public onlyRole(OPERATOR_ROLE) {
         if (_feeRate > 100) {
             revert InvalidFeeRate();
         }
