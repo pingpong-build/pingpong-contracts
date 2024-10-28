@@ -19,6 +19,12 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
 
     uint256 private constant PRICE_EXPIRY = 5 minutes;
 
+    /// @notice Maturity period in days
+    uint256 public immutable maturityDuration;
+
+    /// @notice Price discount percentage (0-100)
+    uint256 public immutable priceDiscount;
+
     /// @notice Instance of the Pyth Oracle interface
     IPyth public immutable pyth;
 
@@ -68,10 +74,20 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @notice Initialize the contract
     /// @param _uri The base URI for forward contract NFTs
     /// @param _fundCollector Address that will receive payments
-    constructor(address _pyth, string memory _uri, address _fundCollector) ERC1155(_uri) {
+    constructor(
+        address _pyth,
+        string memory _uri,
+        address _fundCollector,
+        uint256 _maturityDuration,
+        uint256 _priceDiscount
+    ) ERC1155(_uri) {
         if (_fundCollector == address(0)) revert Errors.InvalidAddress();
         if (_pyth == address(0)) revert Errors.InvalidAddress();
+        if (_priceDiscount > 100) revert Errors.InvalidAmount();
+        if (_maturityDuration == 0) revert Errors.InvalidAmount();
 
+        maturityDuration = _maturityDuration;
+        priceDiscount = _priceDiscount;
         pyth = IPyth(_pyth);
         fundCollector = _fundCollector;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -124,7 +140,7 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param id Pyth price feed ID
     /// @param pythPriceUpdate Price update data from Pyth
     /// @return Price normalized to 18 decimal places
-    function getPrice(bytes32 id, bytes[] calldata pythPriceUpdate) public returns (uint256) {
+    function getPrice(bytes32 id, bytes[] calldata pythPriceUpdate) public payable returns (uint256) {
         if (id == bytes32(0)) return Constants.WAD;
 
         uint256 fee = pyth.getUpdateFee(pythPriceUpdate);
@@ -176,6 +192,7 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         uint256 usdValue = (_amount * tokenPrice) / (10 ** config.decimals);
 
         uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID, _athPriceUpdate);
+        athPrice = athPrice * (100 - priceDiscount) / 100;
         uint256 mintAmount = usdValue / athPrice;
 
         uint256 currentTokenId = getCurrentTokenId();
