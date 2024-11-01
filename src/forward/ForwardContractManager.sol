@@ -99,7 +99,7 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @notice Configure payment token
     /// @param _token Token address (address(0) for ETH)
     /// @param _minAmount Minimum purchase amount in token's smallest unit
-    /// @param _priceFeedId Pyth price feed ID (bytes32(0) for stablecoins)
+    /// @param _priceFeedId Pyth price feed ID
     /// @param _decimals Token decimals
     function setSupportedToken(
         address _token,
@@ -107,6 +107,8 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         bytes32 _priceFeedId,
         uint8 _decimals
     ) external onlyRole(Constants.OPERATOR_ROLE) {
+        if (_minAmount == 0 || _decimals == 0) revert Errors.InvalidAmount();
+
         supportedTokens[_token] = SupportedToken({
             minAmount: _minAmount,
             priceFeedId: _priceFeedId,
@@ -136,19 +138,26 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /* ----------------------- Core Functions ------------------------ */
 
     /// @notice Fetches current price from Pyth oracle
-    /// @dev Returns WAD (1e18) for stablecoins
+    /// @dev Returns token price based on Pyth price feed
     /// @param id Pyth price feed ID
     /// @param pythPriceUpdate Price update data from Pyth
     /// @return Price normalized to 18 decimal places
-    function getPrice(bytes32 id, bytes[] calldata pythPriceUpdate) public payable returns (uint256) {
-        if (id == bytes32(0)) return Constants.WAD;
-
-        uint256 fee = pyth.getUpdateFee(pythPriceUpdate);
-        pyth.updatePriceFeeds{ value: fee }(pythPriceUpdate);
+    function getPrice(bytes32 id) public view returns (uint256) {
         PythStructs.Price memory price = pyth.getPriceNoOlderThan(id, PRICE_EXPIRY);
         uint256 price18Decimals = (uint(uint64(price.price)) * Constants.WAD) / (10 ** uint8(uint32(-1 * price.expo)));
 
         return price18Decimals;
+    }
+
+    /// @notice Updates price data from Pyth oracle
+    /// @param priceId Pyth price feed identifier
+    /// @param updateData Price update data from Pyth
+    function updatePrice(
+        bytes32 priceId,
+        bytes[] calldata updateData
+    ) public payable {
+        uint256 fee = pyth.getUpdateFee(updateData);
+        pyth.updatePriceFeeds{value: fee}(updateData);
     }
 
     /// @notice Purchases tokens with the specified payment token
@@ -161,8 +170,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     function buy(
         uint256 _amount,
         address _token,
-        bytes[] calldata _tokenPriceUpdate,
-        bytes[] calldata _athPriceUpdate,
         string calldata _code
     ) external payable nonReentrant {
         SupportedToken memory config = supportedTokens[_token];
@@ -188,17 +195,37 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
             if (!success) revert Errors.TransferFailed();
         }
 
-        uint256 tokenPrice = getPrice(config.priceFeedId, _tokenPriceUpdate);
+        uint256 tokenPrice = getPrice(config.priceFeedId);
         uint256 usdValue = (_amount * tokenPrice) / (10 ** config.decimals);
 
-        uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID, _athPriceUpdate);
+        uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID);
         athPrice = athPrice * (100 - priceDiscount) / 100;
         uint256 mintAmount = usdValue / athPrice;
+
+        if (mintAmount == 0) revert Errors.InvalidAmount();
 
         uint256 currentTokenId = getCurrentTokenId();
         _mint(msg.sender, currentTokenId, mintAmount, "");
 
         emit Purchased(msg.sender, _token, finalPayment, mintAmount, _code);
+    }
+
+    /// @notice Updates prices and purchases tokens
+    /// @param _amount Amount of payment token to spend
+    /// @param _token Payment token address (address(0) for ETH)
+    /// @param _tokenPriceUpdate Price update data for payment token
+    /// @param _athPriceUpdate Price update data for output token
+    /// @param _code Optional discount code
+    function updateAndBuy(
+        uint256 _amount,
+        address _token,
+        bytes[] calldata _tokenPriceUpdate,
+        bytes[] calldata _athPriceUpdate,
+        string calldata _code
+    ) external payable nonReentrant {
+        updatePrice(supportedTokens[_token].priceFeedId, _tokenPriceUpdate);
+        updatePrice(Constants.PYTH_ATH_PRICE_FEED_ID, _athPriceUpdate);
+        buy(_amount, _token, _code);
     }
 
     /* ----------------------- View Functions ------------------------ */
