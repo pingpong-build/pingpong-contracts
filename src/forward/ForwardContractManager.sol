@@ -149,12 +149,8 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Updates price data from Pyth oracle
-    /// @param priceId Pyth price feed identifier
     /// @param updateData Price update data from Pyth
-    function updatePrice(
-        bytes32 priceId,
-        bytes[] calldata updateData
-    ) public payable {
+    function updatePrice(bytes[] calldata updateData) private {
         uint256 fee = pyth.getUpdateFee(updateData);
         pyth.updatePriceFeeds{value: fee}(updateData);
     }
@@ -220,8 +216,8 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         bytes[] calldata _athPriceUpdate,
         string calldata _code
     ) external payable nonReentrant {
-        updatePrice(supportedTokens[_token].priceFeedId, _tokenPriceUpdate);
-        updatePrice(Constants.PYTH_ATH_PRICE_FEED_ID, _athPriceUpdate);
+        updatePrice(_tokenPriceUpdate);
+        updatePrice(_athPriceUpdate);
         buy(_amount, _token, _code);
     }
 
