@@ -140,7 +140,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @notice Fetches current price from Pyth oracle
     /// @dev Returns token price based on Pyth price feed
     /// @param id Pyth price feed ID
-    /// @param pythPriceUpdate Price update data from Pyth
     /// @return Price normalized to 18 decimal places
     function getPrice(bytes32 id) public view returns (uint256) {
         PythStructs.Price memory price = pyth.getPriceNoOlderThan(id, PRICE_EXPIRY);
@@ -164,14 +163,12 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @dev Supports ETH and ERC20 tokens as payment
     /// @param _amount Amount of payment token to spend (in smallest unit)
     /// @param _token Payment token address (address(0) for ETH)
-    /// @param _tokenPriceUpdate Pyth price update data for payment token
-    /// @param _athPriceUpdate Pyth price update data for output token
     /// @param _code Optional discount code
     function buy(
         uint256 _amount,
         address _token,
         string calldata _code
-    ) external payable nonReentrant {
+    ) public payable nonReentrant {
         SupportedToken memory config = supportedTokens[_token];
         if (config.minAmount == 0) revert Errors.TokenNotSupported();
         if (_amount < config.minAmount) revert Errors.InvalidAmount();
