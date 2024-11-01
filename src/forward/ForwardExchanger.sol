@@ -105,6 +105,7 @@ contract ForwardExchanger is ReentrancyGuard {
     }
 
     function exchange() external nonReentrant {
+        if (expiredAt <= block.timestamp) revert InvalidTime();
         if (!isPaid || !isDelivered) revert ExchangeFailed();
         if (isExchanged) revert ExchangeFailed();
 
