@@ -36,3 +36,11 @@ invoke-mpf-%:
 	$(eval CMD := $(subst invoke-mpf-,,$@))
 	@echo "Invoke msf $(CMD) function"
 	forge script script/MiningPassFactory.s.sol:MiningPassFactoryScript --sig "$(CMD)()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}
+
+deploy-fcm:
+	forge script script/ForwardContractManager.s.sol:ForwardContractManagerScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}
+
+invoke-fcm-%:
+	$(eval CMD := $(subst invoke-fcm-,,$@))
+	@echo "Invoke fcm $(CMD) function"
+	forge script script/ForwardContractManager.s.sol:ForwardContractManagerScript --sig "$(CMD)()" --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}

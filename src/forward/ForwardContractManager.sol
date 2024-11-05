@@ -17,7 +17,16 @@ import {Errors} from "../libraries/Errors.sol";
 contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     using Strings for uint256;
 
-    uint256 private constant PRICE_EXPIRY = 5 minutes;
+    uint256 private constant PRICE_EXPIRY = 1 minutes;
+
+    /// @notice Minimum ATH price allowed for purchases
+    uint256 public minAthPrice;
+
+    /// @notice Total amount of tokens minted
+    uint256 public totalSupply;
+
+    /// @notice Maximum supply cap
+    uint256 public immutable maxSupply;
 
     /// @notice Maturity period in days
     uint256 public immutable maturityDuration;
@@ -44,9 +53,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @notice Mapping of payment token address to token configuration
     mapping(address => SupportedToken) public supportedTokens;
 
-    /// @notice Mapping of discount code hash to discount percentage
-    mapping(bytes32 => uint256) public discountCodes;
-
     /* ----------------------- Events ------------------------ */
 
     /// @notice Emitted when tokens are purchased
@@ -54,8 +60,10 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param paymentToken Address of the payment token (address(0) for ETH)
     /// @param paymentAmount Amount of payment tokens spent (in smallest unit)
     /// @param tokenAmount Amount of tokens received
+    /// @param tokenPrice Price of token in payment token
+    /// @param athPrice Amount of ath token
     /// @param code Discount code used (empty string if no code used)
-    event Purchased(address indexed buyer, address paymentToken, uint256 paymentAmount, uint256 tokenAmount, string code);
+    event Purchased(address indexed buyer, address paymentToken, uint256 paymentAmount, uint256 tokenAmount, uint256 tokenPrice, uint256 athPrice, string code);
 
     /// @notice Emitted when a payment token is configured
     /// @param token The token address being configured
@@ -63,11 +71,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param priceFeedId Pyth price feed identifier
     /// @param decimals Token decimal places
     event TokenConfigured( address token, uint256 minAmount, bytes32 priceFeedId, uint8 decimals);
-
-    /// @notice Emitted when a discount code is updated
-    /// @param code Hash of the discount code
-    /// @param discount New discount percentage
-    event DiscountCodeUpdated(bytes32 indexed code, uint256 discount);
 
     /* ----------------------- Constructor ------------------------ */
 
@@ -79,19 +82,24 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         string memory _uri,
         address _fundCollector,
         uint256 _maturityDuration,
-        uint256 _priceDiscount
+        uint256 _priceDiscount,
+        uint256 _maxSupply,
+        uint256 _minAthPrice
     ) ERC1155(_uri) {
         if (_fundCollector == address(0)) revert Errors.InvalidAddress();
         if (_pyth == address(0)) revert Errors.InvalidAddress();
         if (_priceDiscount > 100) revert Errors.InvalidAmount();
         if (_maturityDuration == 0) revert Errors.InvalidAmount();
+        if (_maxSupply == 0) revert Errors.InvalidAmount();
 
         maturityDuration = _maturityDuration;
         priceDiscount = _priceDiscount;
         pyth = IPyth(_pyth);
         fundCollector = _fundCollector;
+        maxSupply = _maxSupply;
+        minAthPrice = _minAthPrice;
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(Constants.OPERATOR_ROLE, msg.sender);
     }
 
     /* ----------------------- Admin Functions ------------------------ */
@@ -106,7 +114,7 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         uint256 _minAmount,
         bytes32 _priceFeedId,
         uint8 _decimals
-    ) external onlyRole(Constants.OPERATOR_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_minAmount == 0 || _decimals == 0) revert Errors.InvalidAmount();
 
         supportedTokens[_token] = SupportedToken({
@@ -116,23 +124,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         });
 
         emit TokenConfigured(_token, _minAmount, _priceFeedId, _decimals);
-    }
-
-    /// @notice Set multiple discount codes
-    /// @param _codes Array of discount codes
-    /// @param _discounts Array of discount percentages (1-100)
-    function setDiscountCodes(
-        string[] calldata _codes,
-        uint256[] calldata _discounts
-    ) external onlyRole(Constants.OPERATOR_ROLE) {
-        if (_codes.length == 0 || _codes.length != _discounts.length) revert Errors.InvalidArrayLength();
-
-        for (uint256 i = 0; i < _codes.length; i++) {
-            if (_discounts[i] > 100) revert Errors.InvalidAmount();
-            bytes32 codeHash = keccak256(abi.encodePacked(_codes[i]));
-            discountCodes[codeHash] = _discounts[i];
-            emit DiscountCodeUpdated(codeHash, _discounts[i]);
-        }
     }
 
     /* ----------------------- Core Functions ------------------------ */
@@ -156,69 +147,52 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     }
 
     /// @notice Purchases tokens with the specified payment token
-    /// @dev Supports ETH and ERC20 tokens as payment
-    /// @param _amount Amount of payment token to spend (in smallest unit)
+    /// @param _amount Amount of payment token to spend
     /// @param _token Payment token address (address(0) for ETH)
+    /// @param _tokenPriceUpdate Price update data for payment token
     /// @param _code Optional discount code
     function buy(
         uint256 _amount,
         address _token,
+        bytes[] calldata _tokenPriceUpdate,
         string calldata _code
-    ) public payable nonReentrant {
+    ) external payable nonReentrant {
         SupportedToken memory config = supportedTokens[_token];
         if (config.minAmount == 0) revert Errors.TokenNotSupported();
         if (_amount < config.minAmount) revert Errors.InvalidAmount();
 
-        uint256 finalPayment = _amount;
-        if (bytes(_code).length > 0) {
-            uint256 discount = getDiscount(_code);
-            finalPayment = _amount * (100 - discount) / 100;
-        }
-
         if (_token == address(0)) {
-            if (msg.value < finalPayment) revert Errors.InsufficientBalance();
-            (bool success, ) = fundCollector.call{value: finalPayment}("");
+            if (msg.value < _amount) revert Errors.InsufficientBalance();
+            (bool success, ) = fundCollector.call{value: _amount}("");
             if (!success) revert Errors.TransferFailed();
-            if (msg.value > finalPayment) {
-                (bool refundSuccess, ) = msg.sender.call{value: msg.value - finalPayment}("");
+            if (msg.value > _amount) {
+                (bool refundSuccess, ) = msg.sender.call{value: msg.value - _amount}("");
                 if (!refundSuccess) revert Errors.TransferFailed();
             }
         } else {
-            bool success = IERC20(_token).transferFrom(msg.sender, fundCollector, finalPayment);
+            bool success = IERC20(_token).transferFrom(msg.sender, fundCollector, _amount);
             if (!success) revert Errors.TransferFailed();
         }
+
+        updatePrice(_tokenPriceUpdate);
 
         uint256 tokenPrice = getPrice(config.priceFeedId);
         uint256 usdValue = (_amount * tokenPrice) / (10 ** config.decimals);
 
         uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID);
+        if (athPrice < minAthPrice) revert Errors.PriceTooLow();
         athPrice = athPrice * (100 - priceDiscount) / 100;
         uint256 mintAmount = usdValue / athPrice;
 
         if (mintAmount == 0) revert Errors.InvalidAmount();
+        if (totalSupply + mintAmount > maxSupply) revert Errors.MaxSupplyReached();
+
+        totalSupply += mintAmount;
 
         uint256 currentTokenId = getCurrentTokenId();
         _mint(msg.sender, currentTokenId, mintAmount, "");
 
-        emit Purchased(msg.sender, _token, finalPayment, mintAmount, _code);
-    }
-
-    /// @notice Updates prices and purchases tokens
-    /// @param _amount Amount of payment token to spend
-    /// @param _token Payment token address (address(0) for ETH)
-    /// @param _tokenPriceUpdate Price update data for payment token
-    /// @param _athPriceUpdate Price update data for output token
-    /// @param _code Optional discount code
-    function updateAndBuy(
-        uint256 _amount,
-        address _token,
-        bytes[] calldata _tokenPriceUpdate,
-        bytes[] calldata _athPriceUpdate,
-        string calldata _code
-    ) external payable nonReentrant {
-        updatePrice(_tokenPriceUpdate);
-        updatePrice(_athPriceUpdate);
-        buy(_amount, _token, _code);
+        emit Purchased(msg.sender, _token, _amount, mintAmount, tokenPrice, athPrice, _code);
     }
 
     /* ----------------------- View Functions ------------------------ */
@@ -234,13 +208,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param _id The forward contract id
     function uri(uint256 _id) public view virtual override returns (string memory) {
         return string(abi.encodePacked(super.uri(_id), _id.toString()));
-    }
-
-    /// @notice Get discount percentage for a given code
-    /// @param _code Discount code to check
-    /// @return Discount percentage (0-100), returns 0 if code is invalid
-    function getDiscount(string calldata _code) public view returns (uint256) {
-        return discountCodes[keccak256(abi.encodePacked(_code))];
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {

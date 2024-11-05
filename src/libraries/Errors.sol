@@ -22,4 +22,10 @@ library Errors {
 
     /// @notice Error when token is not supported
     error TokenNotSupported();
+
+    /// @notice Error when max supply is reached
+    error MaxSupplyReached();
+
+    /// @notice Error when price is too low
+    error PriceTooLow();
 }
