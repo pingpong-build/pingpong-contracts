@@ -40,6 +40,9 @@ invoke-mpf-%:
 deploy-fcm:
 	forge script script/ForwardContractManager.s.sol:ForwardContractManagerScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}
 
+deploy-mc:
+	forge script script/MerchantController.s.sol:MerchantControllerScript --private-key ${PRIVATE_KEY} --broadcast --rpc-url ${RPC_URL} --legacy --verify --etherscan-api-key ${ETHERSCAN_API_KEY}
+
 invoke-fcm-%:
 	$(eval CMD := $(subst invoke-fcm-,,$@))
 	@echo "Invoke fcm $(CMD) function"
