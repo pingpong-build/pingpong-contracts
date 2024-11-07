@@ -9,18 +9,15 @@ contract ForwardContractManagerScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        ForwardContractManager fcm = new ForwardContractManager(
+        new ForwardContractManager(
+            0xff1a0f4744e8582DF1aE09D5611b887B6a12925C,
             0xff1a0f4744e8582DF1aE09D5611b887B6a12925C,
             "https://resource.pingpong.build/static/future/",
-            0xDf5615D6FAa536C23c374E7F452254752e079bFB,
-            3 * 30 * 24 * 3600,
-            10,
-            1_250_000,
-            0.0452 ether
+            0xDf5615D6FAa536C23c374E7F452254752e079bFB
         );
-        fcm.setSupportedToken(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 0.001 * 1e6, 0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b, 6);
-        fcm.setSupportedToken(0xaf88d065e77c8cC2239327C5EDb3A432268e5831, 0.001 * 1e6, 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a, 6);
-        fcm.setSupportedToken(0x0000000000000000000000000000000000000000, 0.00001 * 1e18, 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace, 18);
+//        fcm.setSupportedToken(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 0.001 * 1e6, 0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b, 6);
+//        fcm.setSupportedToken(0xaf88d065e77c8cC2239327C5EDb3A432268e5831, 0.001 * 1e6, 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a, 6);
+//        fcm.setSupportedToken(0x0000000000000000000000000000000000000000, 0.00001 * 1e18, 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace, 18);
         vm.stopBroadcast();
     }
 

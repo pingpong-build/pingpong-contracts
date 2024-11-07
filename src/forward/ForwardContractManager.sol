@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -10,48 +9,29 @@ import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 import {Constants} from "../libraries/Constants.sol";
 import {Errors} from "../libraries/Errors.sol";
+import {IMerchantController} from "../interfaces/IMerchantController.sol";
 
 /// @title ForwardContractManager
 /// @notice Manages forward contracts for yield revenue, allowing users to purchase future revenue rights
 /// @dev Implements ERC1155 for multi-token management, AccessControl for permissions, and ReentrancyGuard for security
-contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
+contract ForwardContractManager is ERC1155, ReentrancyGuard {
     using Strings for uint256;
 
     uint256 private constant PRICE_EXPIRY = 1 minutes;
 
-    /// @notice Minimum ATH price allowed for purchases
-    uint256 public minAthPrice;
-
     /// @notice Total amount of tokens minted
     uint256 public totalSupply;
-
-    /// @notice Maximum supply cap
-    uint256 public immutable maxSupply;
-
-    /// @notice Maturity period in days
-    uint256 public immutable maturityDuration;
-
-    /// @notice Price discount percentage (0-100)
-    uint256 public immutable priceDiscount;
 
     /// @notice Instance of the Pyth Oracle interface
     IPyth public immutable pyth;
 
-    /* ----------------------- Storage ------------------------ */
+    /// @notice Instance of the Merchant Controller
+    IMerchantController public immutable controller;
 
-    /// @notice Configuration struct for supported payment tokens
-    /// @dev Stores configurations for each supported payment token
-    struct SupportedToken {
-        uint256 minAmount;          // Minimum purchase amount in token's smallest unit
-        bytes32 priceFeedId;        // Pyth price feed ID (0 for stablecoins)
-        uint8 decimals;             // Token decimals
-    }
+    /* ----------------------- Storage ------------------------ */
 
     /// @notice Address that receives payments
     address public fundCollector;
-
-    /// @notice Mapping of payment token address to token configuration
-    mapping(address => SupportedToken) public supportedTokens;
 
     /* ----------------------- Events ------------------------ */
 
@@ -65,65 +45,24 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param code Discount code used (empty string if no code used)
     event Purchased(address indexed buyer, address paymentToken, uint256 paymentAmount, uint256 tokenAmount, uint256 tokenPrice, uint256 athPrice, string code);
 
-    /// @notice Emitted when a payment token is configured
-    /// @param token The token address being configured
-    /// @param minAmount Minimum purchase amount
-    /// @param priceFeedId Pyth price feed identifier
-    /// @param decimals Token decimal places
-    event TokenConfigured( address token, uint256 minAmount, bytes32 priceFeedId, uint8 decimals);
-
     /* ----------------------- Constructor ------------------------ */
 
     /// @notice Initialize the contract
     /// @param _uri The base URI for forward contract NFTs
     /// @param _fundCollector Address that will receive payments
     constructor(
+        address _controller,
         address _pyth,
         string memory _uri,
-        address _fundCollector,
-        uint256 _maturityDuration,
-        uint256 _priceDiscount,
-        uint256 _maxSupply,
-        uint256 _minAthPrice
+        address _fundCollector
     ) ERC1155(_uri) {
-        if (_fundCollector == address(0)) revert Errors.InvalidAddress();
+        if (_controller == address(0)) revert Errors.InvalidAddress();
         if (_pyth == address(0)) revert Errors.InvalidAddress();
-        if (_priceDiscount > 100) revert Errors.InvalidAmount();
-        if (_maturityDuration == 0) revert Errors.InvalidAmount();
-        if (_maxSupply == 0) revert Errors.InvalidAmount();
+        if (_fundCollector == address(0)) revert Errors.InvalidAddress();
 
-        maturityDuration = _maturityDuration;
-        priceDiscount = _priceDiscount;
+        controller = IMerchantController(_controller);
         pyth = IPyth(_pyth);
         fundCollector = _fundCollector;
-        maxSupply = _maxSupply;
-        minAthPrice = _minAthPrice;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /* ----------------------- Admin Functions ------------------------ */
-
-    /// @notice Configure payment token
-    /// @param _token Token address (address(0) for ETH)
-    /// @param _minAmount Minimum purchase amount in token's smallest unit
-    /// @param _priceFeedId Pyth price feed ID
-    /// @param _decimals Token decimals
-    function setSupportedToken(
-        address _token,
-        uint256 _minAmount,
-        bytes32 _priceFeedId,
-        uint8 _decimals
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_minAmount == 0 || _decimals == 0) revert Errors.InvalidAmount();
-
-        supportedTokens[_token] = SupportedToken({
-            minAmount: _minAmount,
-            priceFeedId: _priceFeedId,
-            decimals: _decimals
-        });
-
-        emit TokenConfigured(_token, _minAmount, _priceFeedId, _decimals);
     }
 
     /* ----------------------- Core Functions ------------------------ */
@@ -157,10 +96,40 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
         bytes[] calldata _tokenPriceUpdate,
         string calldata _code
     ) external payable nonReentrant {
-        SupportedToken memory config = supportedTokens[_token];
-        if (config.minAmount == 0) revert Errors.TokenNotSupported();
-        if (_amount < config.minAmount) revert Errors.InvalidAmount();
+        IMerchantController.ForwardContractInfo memory contractInfo = controller.getForwardContractInfo(address(this));
+        if (!contractInfo.isActive) revert IMerchantController.ContractNotActive();
 
+        IMerchantController.SupportedToken memory tokenConfig = controller.getSupportedToken(address(this), _token);
+        if (tokenConfig.minAmount == 0) revert Errors.TokenNotSupported();
+        if (_amount < tokenConfig.minAmount) revert Errors.InvalidAmount();
+
+        _handlePayment(_token, _amount);
+
+        updatePrice(_tokenPriceUpdate);
+
+        uint256 tokenPrice = getPrice(tokenConfig.priceFeedId);
+        uint256 usdValue = (_amount * tokenPrice) / (10 ** tokenConfig.decimals);
+
+        uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID);
+        if (athPrice < contractInfo.minPrice) revert Errors.PriceTooLow();
+        athPrice = athPrice * (100 - contractInfo.discount) / 100;
+        uint256 mintAmount = usdValue / athPrice;
+
+        if (mintAmount == 0) revert Errors.InvalidAmount();
+        if (totalSupply + mintAmount > contractInfo.maxSupply) revert Errors.MaxSupplyReached();
+
+        totalSupply += mintAmount;
+
+        uint256 currentTokenId = getCurrentTokenId();
+        _mint(msg.sender, currentTokenId, mintAmount, "");
+
+        emit Purchased(msg.sender, _token, _amount, mintAmount, tokenPrice, athPrice, _code);
+    }
+
+    /// @notice Handles payment in ETH or ERC20
+    /// @param _token Token address (address(0) for ETH)
+    /// @param _amount Amount to transfer
+    function _handlePayment(address _token, uint256 _amount) private {
         if (_token == address(0)) {
             if (msg.value < _amount) revert Errors.InsufficientBalance();
             (bool success, ) = fundCollector.call{value: _amount}("");
@@ -173,27 +142,8 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
             bool success = IERC20(_token).transferFrom(msg.sender, fundCollector, _amount);
             if (!success) revert Errors.TransferFailed();
         }
-
-        updatePrice(_tokenPriceUpdate);
-
-        uint256 tokenPrice = getPrice(config.priceFeedId);
-        uint256 usdValue = (_amount * tokenPrice) / (10 ** config.decimals);
-
-        uint256 athPrice = getPrice(Constants.PYTH_ATH_PRICE_FEED_ID);
-        if (athPrice < minAthPrice) revert Errors.PriceTooLow();
-        athPrice = athPrice * (100 - priceDiscount) / 100;
-        uint256 mintAmount = usdValue / athPrice;
-
-        if (mintAmount == 0) revert Errors.InvalidAmount();
-        if (totalSupply + mintAmount > maxSupply) revert Errors.MaxSupplyReached();
-
-        totalSupply += mintAmount;
-
-        uint256 currentTokenId = getCurrentTokenId();
-        _mint(msg.sender, currentTokenId, mintAmount, "");
-
-        emit Purchased(msg.sender, _token, _amount, mintAmount, tokenPrice, athPrice, _code);
     }
+
 
     /* ----------------------- View Functions ------------------------ */
 
@@ -208,10 +158,6 @@ contract ForwardContractManager is ERC1155, AccessControl, ReentrancyGuard {
     /// @param _id The forward contract id
     function uri(uint256 _id) public view virtual override returns (string memory) {
         return string(abi.encodePacked(super.uri(_id), _id.toString()));
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
-        return super.supportsInterface(interfaceId);
     }
 
     /// @notice Allow the contract to receive ETH

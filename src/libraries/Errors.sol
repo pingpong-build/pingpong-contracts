@@ -28,4 +28,7 @@ library Errors {
 
     /// @notice Error when price is too low
     error PriceTooLow();
+
+    /// @notice Error when caller is not authorized
+    error Unauthorized();
 }
