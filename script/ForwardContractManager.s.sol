@@ -6,23 +6,38 @@ import {ForwardContractManager} from "../src/forward/ForwardContractManager.sol"
 import {MerchantController} from "../src/forward/MerchantController.sol";
 
 contract ForwardContractManagerScript is Script {
-    address controller = 0x1B86125FE74EAE3e950E50EfFe70a35eAFF82277;
+//    address controller = 0xC3Fc42E47969E46d21C861e9a9b1cdf4Be083CfB;
+//    address fundCollector = 0x99743E9dB528C227766CCdaF01dF0FEF1A3Ea532;
+    address controller = 0xfA3Ca7F3698f9da7DC987e79B42fb162dd3df8c9;
+    address fundCollector = 0x5C190758a9742B221039f35A45824351542BFF37;
     function setUp() public {}
 
     function run() public {
         vm.startBroadcast();
+        MerchantController mc = MerchantController(controller);
         ForwardContractManager fcm = new ForwardContractManager(
             controller,
             0xff1a0f4744e8582DF1aE09D5611b887B6a12925C,
-            "https://resource.pingpong.build/static/future/",
-            0xDf5615D6FAa536C23c374E7F452254752e079bFB
+            "https://resource.pingpong.build/static/forward/",
+        fundCollector
         );
 
-        MerchantController mc = MerchantController(controller);
-        mc.registerForwardContract(address(fcm), 0xDf5615D6FAa536C23c374E7F452254752e079bFB, 10, 10000, 0.04 ether);
-        mc.setSupportedToken(address(fcm), 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 0.001 * 1e6, 0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b, 6);
-        mc.setSupportedToken(address(fcm), 0xaf88d065e77c8cC2239327C5EDb3A432268e5831, 0.001 * 1e6, 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a, 6);
-        mc.setSupportedToken(address(fcm), 0x0000000000000000000000000000000000000000, 0.00001 * 1e18, 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace, 18);
+        mc.registerForwardContract(address(fcm), 0xDf5615D6FAa536C23c374E7F452254752e079bFB, 10, 13000000, 0.055 ether);
+//        mc.setSupportedToken(address(fcm), 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 10 * 1e6, 0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b, 6);
+//        mc.setSupportedToken(address(fcm), 0xaf88d065e77c8cC2239327C5EDb3A432268e5831, 10 * 1e6, 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a, 6);
+        mc.setSupportedToken(address(fcm), 0x0000000000000000000000000000000000000000, 0.003 * 1e18, 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace, 18);
+
+        ForwardContractManager fcm2 = new ForwardContractManager(
+            controller,
+            0xff1a0f4744e8582DF1aE09D5611b887B6a12925C,
+            "https://resource.pingpong.build/static/forward/",
+            fundCollector
+        );
+
+        mc.registerForwardContract(address(fcm2), 0xDf5615D6FAa536C23c374E7F452254752e079bFB, 20, 13000000, 0.055 ether);
+//        mc.setSupportedToken(address(fcm2), 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 10 * 1e6, 0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b, 6);
+//        mc.setSupportedToken(address(fcm2), 0xaf88d065e77c8cC2239327C5EDb3A432268e5831, 10 * 1e6, 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a, 6);
+        mc.setSupportedToken(address(fcm2), 0x0000000000000000000000000000000000000000, 0.003 * 1e18, 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace, 18);
         vm.stopBroadcast();
     }
 
